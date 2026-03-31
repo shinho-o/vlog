@@ -231,6 +231,7 @@ def index():
         usage=usage,
         total_cost=round(sum(u.get("cost_usd", 0) or 0 for u in usage), 4),
         total_calls=len(usage),
+        claude_balance=round(4.76 - sum(u.get("cost_usd", 0) or 0 for u in usage if u.get("service") == "claude"), 4),
     )
 
 
