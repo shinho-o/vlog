@@ -625,14 +625,62 @@ function analyzeVideo(vid){
         if(d.error){content.innerHTML=`<p style="color:var(--red);">${d.error}</p>`;return;}
         const a=d.analysis;
         let html='';
-        if(a.why_successful) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">왜 잘 됐는지</h4><p style="font-size:14px;line-height:1.7;">${a.why_successful}</p></div>`;
-        if(a.title_analysis) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">제목 분석</h4><p style="font-size:14px;line-height:1.7;">${a.title_analysis}</p></div>`;
+
+        // 강점/약점
+        if(a.strengths){
+            html+='<div style="margin-bottom:16px;"><h4 style="color:var(--green);margin-bottom:8px;">강점</h4>';
+            a.strengths.forEach(s=>html+=`<div style="padding:4px 0;font-size:14px;">+ ${s}</div>`);
+            html+='</div>';
+        }
+        if(a.weaknesses){
+            html+='<div style="margin-bottom:16px;"><h4 style="color:var(--red);margin-bottom:8px;">약점 / 개선점</h4>';
+            a.weaknesses.forEach(s=>html+=`<div style="padding:4px 0;font-size:14px;">- ${s}</div>`);
+            html+='</div>';
+        }
+
+        // 제목 분석
+        if(a.title_analysis){
+            const t=a.title_analysis;
+            html+=`<div style="margin-bottom:16px;padding:14px;border-radius:12px;background:var(--bg);">
+                <h4 style="color:var(--accent);margin-bottom:8px;">제목 분석 <span style="font-size:20px;margin-left:8px;">${'★'.repeat(Math.round((t.score||5)/2))}</span> <span style="font-size:13px;color:var(--dim);">${t.score||'?'}/10</span></h4>
+                <div style="font-size:14px;line-height:1.8;">
+                    <div style="color:var(--green);">Good: ${t.good||''}</div>
+                    <div style="color:var(--red);">Bad: ${t.bad||''}</div>
+                    <div style="color:var(--accent);font-weight:600;margin-top:4px;">제안: ${t.suggestion||''}</div>
+                </div>
+            </div>`;
+        }
+
+        // 썸네일 분석
+        if(a.thumbnail_analysis){
+            const th=a.thumbnail_analysis;
+            html+=`<div style="margin-bottom:16px;padding:14px;border-radius:12px;background:var(--bg);">
+                <h4 style="color:var(--accent);margin-bottom:8px;">썸네일 분석 <span style="font-size:20px;margin-left:8px;">${'★'.repeat(Math.round((th.score||5)/2))}</span> <span style="font-size:13px;color:var(--dim);">${th.score||'?'}/10</span></h4>
+                <div style="font-size:14px;line-height:1.8;">
+                    <div>구도: ${th.composition||''}</div>
+                    <div>클릭 유도력: ${th.click_appeal||''}</div>
+                    <div style="color:var(--accent);font-weight:600;margin-top:4px;">개선: ${th.improvement||''}</div>
+                </div>
+            </div>`;
+        }
+
+        // 핵심 이유
+        if(a.why_successful) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">핵심 분석</h4><p style="font-size:14px;line-height:1.7;">${a.why_successful}</p></div>`;
+
+        // 알고리즘
+        if(a.algorithm_tips) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">알고리즘 분석</h4><p style="font-size:14px;line-height:1.7;">${a.algorithm_tips}</p></div>`;
+
+        // 오디언스
         if(a.audience) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">타겟 오디언스</h4><p style="font-size:14px;">${a.audience}</p></div>`;
+
+        // 팁
         if(a.replication_tips){
             html+='<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">이런 영상 만들려면</h4><ul style="font-size:14px;padding-left:20px;line-height:1.8;">';
             a.replication_tips.forEach(t=>html+=`<li>${t}</li>`);
             html+='</ul></div>';
         }
+
+        // 아이디어
         if(a.similar_ideas){
             html+='<div><h4 style="color:var(--accent);margin-bottom:6px;">비슷한 영상 아이디어</h4>';
             a.similar_ideas.forEach(i=>html+=`<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;"><b>${i.title}</b><br><span style="color:var(--dim);font-size:13px;">${i.concept}</span></div>`);

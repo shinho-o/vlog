@@ -502,7 +502,9 @@ def analyze_single_video():
         return jsonify({"error": "Video not found"})
     v = rows[0]
 
-    prompt = f"""Analyze this YouTube video's performance and give actionable insights.
+    thumb_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+
+    prompt_text = f"""You are a YouTube algorithm expert. Analyze this video thoroughly.
 
 Video data:
 - Title: {v['title']}
@@ -514,42 +516,71 @@ Video data:
 - Category: {v.get('category','')}
 - Duration: {v.get('duration','')}
 - Engagement rate: {round(v.get('likes',0)/max(v.get('views',1),1)*100, 2)}%
+- Thumbnail URL: {thumb_url}
+
+The attached image is the video's thumbnail. Analyze it visually.
 
 Respond in Korean. Output ONLY valid JSON:
 
 {{
-  "why_successful": "이 영상이 조회수를 많이/적게 받은 이유 (2-3문장)",
-  "title_analysis": "제목의 강점과 약점 분석 (클릭 유도 요소, 키워드 등)",
-  "audience": "이 영상의 타겟 오디언스",
-  "replication_tips": ["비슷한 영상을 만들기 위한 팁 1", "팁 2", "팁 3"],
+  "strengths": ["이 영상의 강점 1", "강점 2", "강점 3"],
+  "weaknesses": ["이 영상의 약점/개선점 1", "약점 2"],
+  "title_analysis": {{
+    "score": 1-10,
+    "good": "제목의 좋은 점",
+    "bad": "제목의 아쉬운 점",
+    "suggestion": "더 나은 제목 제안"
+  }},
+  "thumbnail_analysis": {{
+    "score": 1-10,
+    "composition": "구도 분석 (색상, 레이아웃, 텍스트 등)",
+    "click_appeal": "클릭 유도력 평가",
+    "improvement": "썸네일 개선 제안"
+  }},
+  "why_successful": "이 영상이 조회수를 많이/적게 받은 핵심 이유 (2-3문장)",
+  "audience": "타겟 오디언스",
+  "algorithm_tips": "YouTube 알고리즘 관점에서의 분석 (노출, CTR, 시청시간 예측)",
+  "replication_tips": ["비슷한 영상을 만들기 위한 구체적 팁 1", "팁 2", "팁 3"],
   "similar_ideas": [
-    {{"title": "비슷하게 만들 수 있는 영상 제목 1", "concept": "간단한 설명"}},
-    {{"title": "비슷하게 만들 수 있는 영상 제목 2", "concept": "간단한 설명"}}
+    {{"title": "영상 제목 아이디어 1", "concept": "설명"}},
+    {{"title": "영상 제목 아이디어 2", "concept": "설명"}}
   ]
 }}
 """
 
     raw = None
-    # Gemini 우선 시도 (무료)
+    # Gemini 우선 (무료 + 이미지 분석 가능)
     if GEMINI_API_KEY:
         try:
             from google import genai
+            from google.genai import types
             client = genai.Client(api_key=GEMINI_API_KEY)
-            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+
+            # 썸네일 이미지 + 텍스트 멀티모달
+            import requests as req
+            img_bytes = req.get(thumb_url, timeout=5).content
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
+                    types.Part.from_text(text=prompt_text),
+                ],
+            )
             raw = response.text.strip()
             t_in = getattr(getattr(response, 'usage_metadata', None), 'prompt_token_count', 0) or 0
             t_out = getattr(getattr(response, 'usage_metadata', None), 'candidates_token_count', 0) or 0
             log_usage("gemini", "gemini-2.5-flash", "analyze_video", t_in, t_out)
         except Exception as e:
-            print(f"[WARN] Gemini failed: {e}")
+            print(f"[WARN] Gemini multimodal failed: {e}")
 
-    # Gemini 실패 시 Claude
+    # Gemini 실패 시 Claude (텍스트만)
     if not raw and ANTHROPIC_API_KEY:
         import anthropic
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514", max_tokens=1500,
-            messages=[{"role": "user", "content": prompt}],
+            model="claude-sonnet-4-20250514", max_tokens=2000,
+            messages=[{"role": "user", "content": prompt_text}],
         )
         raw = response.content[0].text.strip()
         log_usage("claude", "claude-sonnet-4-20250514", "analyze_video",
