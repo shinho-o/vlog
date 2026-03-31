@@ -224,6 +224,7 @@
 
     <!-- 영상 -->
     <div id="videos" class="tab-content active">
+        <!-- URL로 추가 -->
         <div class="form-card">
             <form action="/add_video" method="POST" class="form-row">
                 <div style="flex:2;min-width:250px;"><input name="url" placeholder="YouTube URL 붙여넣기" required></div>
@@ -233,8 +234,19 @@
                         <option value="Uncategorized">기타</option>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-p">+ 영상 추가</button>
+                <button type="submit" class="btn btn-p">+ URL 추가</button>
             </form>
+        </div>
+
+        <!-- 검색으로 추가 -->
+        <div class="form-card" style="border-color:var(--accent);">
+            <h3>YouTube 검색</h3>
+            <div class="form-row">
+                <div style="flex:2;"><input id="searchInput" placeholder="검색어 입력 (예: 서울대 브이로그, aesthetic cafe vlog)" onkeydown="if(event.key==='Enter')searchYT()"></div>
+                <button class="btn btn-p" onclick="searchYT()">검색</button>
+            </div>
+            <div id="searchError" style="display:none;margin-top:12px;padding:12px;border-radius:10px;background:rgba(239,68,68,.06);border:1.5px solid var(--red);color:var(--red);font-size:13px;font-weight:500;"></div>
+            <div id="searchResults" style="display:none;margin-top:16px;"></div>
         </div>
         {% if categories %}
         <div class="filters">
@@ -515,6 +527,48 @@ function hideVideo(vid){ fetch('/toggle_video',{method:'POST',headers:{'Content-
 function removeChannel(n){ if(!confirm(n+' 삭제?'))return; fetch('/remove_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(()=>location.reload()); }
 function toggleQuery(id){ fetch('/toggle_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
 function deleteQuery(id){ if(!confirm('삭제?'))return; fetch('/delete_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
+function searchYT(){
+    const q=document.getElementById('searchInput').value.trim();
+    if(!q)return;
+    const res=document.getElementById('searchResults');
+    const err=document.getElementById('searchError');
+    err.style.display='none'; res.style.display='none';
+    res.innerHTML='<p style="color:var(--dim);padding:16px;text-align:center;">검색 중...</p>';
+    res.style.display='block';
+    fetch('/search_youtube',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})})
+    .then(r=>{
+        if(r.status===429) return r.json().then(d=>{throw new Error(d.error)});
+        return r.json();
+    })
+    .then(d=>{
+        if(d.error){err.textContent=d.error;err.style.display='block';res.style.display='none';return;}
+        if(!d.results||d.results.length===0){res.innerHTML='<p style="color:var(--dim);padding:16px;text-align:center;">검색 결과가 없습니다.</p>';return;}
+        let html='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">';
+        d.results.forEach(v=>{
+            html+=`<div class="card" style="margin:0;">
+                <a href="https://youtube.com/watch?v=${v.video_id}" target="_blank">
+                    <img src="https://img.youtube.com/vi/${v.video_id}/mqdefault.jpg" style="width:100%;border-radius:10px;margin-bottom:8px;aspect-ratio:16/9;object-fit:cover;">
+                </a>
+                <div style="font-weight:600;font-size:13.5px;margin-bottom:6px;">${v.title.substring(0,55)}${v.title.length>55?'...':''}</div>
+                <div class="meta"><span>${v.channel}</span><span><b>${v.views.toLocaleString()}</b> views</span></div>
+                <div style="margin-top:8px;">
+                    ${v.already_added
+                        ?'<button class="btn btn-sm" style="opacity:.5;" disabled>추가됨</button>'
+                        :`<button class="btn btn-sm btn-p" onclick="importFromSearch('${v.video_id}',this)">+ 추가</button>`
+                    }
+                </div>
+            </div>`;
+        });
+        html+='</div>';
+        res.innerHTML=html;
+    }).catch(e=>{err.textContent=e.message;err.style.display='block';res.style.display='none';});
+}
+function importFromSearch(vid,btn){
+    btn.textContent='...';btn.disabled=true;
+    fetch('/import_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:vid,category:'Uncategorized'})})
+    .then(r=>r.json()).then(()=>{btn.textContent='추가됨';btn.style.opacity='.5';})
+    .catch(()=>{btn.textContent='+ 추가';btn.disabled=false;});
+}
 function analyzeVideo(vid){
     const modal=document.getElementById('analysisModal');
     const loading=document.getElementById('modalLoading');
@@ -617,10 +671,18 @@ function collectVideos(){
     const b=document.getElementById('collectBtn');const b2=document.getElementById('collectBtn2');
     b.textContent='수집 중...';b.disabled=true;if(b2){b2.textContent='수집 중...';b2.disabled=true;}
     const res=document.getElementById('collectResult');res.style.display='none';
-    fetch('/collect_videos',{method:'POST'}).then(r=>r.json()).then(d=>{
+    fetch('/collect_videos',{method:'POST'}).then(r=>{
+        if(r.status===429) return r.json().then(d=>{throw new Error(d.message)});
+        return r.json();
+    }).then(d=>{
         res.style.display='block';res.textContent=d.message;
+        res.style.borderColor='var(--green)';res.style.color='var(--green)';res.style.background='rgba(16,185,129,.06)';
         b.textContent='영상 수집';b.disabled=false;if(b2){b2.textContent='전체 수집 실행';b2.disabled=false;}
-    }).catch(()=>{b.textContent='영상 수집';b.disabled=false;if(b2){b2.textContent='전체 수집 실행';b2.disabled=false;}});
+    }).catch(e=>{
+        res.style.display='block';res.textContent=e.message;
+        res.style.borderColor='var(--red)';res.style.color='var(--red)';res.style.background='rgba(239,68,68,.06)';
+        b.textContent='영상 수집';b.disabled=false;if(b2){b2.textContent='전체 수집 실행';b2.disabled=false;}
+    });
 }
 </script>
 </body>

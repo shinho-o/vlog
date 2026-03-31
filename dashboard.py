@@ -17,6 +17,7 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 app = Flask(__name__)
 
@@ -31,6 +32,20 @@ BLOCK_KEYWORDS = [
 def _is_blocked(title, channel):
     text = (title + " " + channel).lower()
     return any(kw in text for kw in BLOCK_KEYWORDS)
+
+
+class QuotaExceededError(Exception):
+    pass
+
+
+def _safe_yt_execute(request_obj):
+    """YouTube API 호출 — 쿼터 초과 시 QuotaExceededError 발생"""
+    try:
+        return request_obj.execute()
+    except Exception as e:
+        if "quotaExceeded" in str(e) or "quota" in str(e).lower():
+            raise QuotaExceededError("YouTube API 일일 쿼터가 초과되었습니다. 내일 오전에 자동 리셋됩니다.")
+        raise
 
 
 def sb():
@@ -412,7 +427,10 @@ def collect_videos():
                 total += len(rows)
             details.append({"query": q["query"], "count": len(rows)})
         except Exception as e:
-            details.append({"query": q["query"], "count": 0, "error": str(e)[:100]})
+            err_str = str(e)
+            if "quota" in err_str.lower():
+                return jsonify({"message": "YouTube API 일일 쿼터 초과! 내일 오전에 리셋됩니다.", "collected": total}), 429
+            details.append({"query": q["query"], "count": 0, "error": err_str[:100]})
 
     s.table("vlog_runs").insert({
         "date": today, "videos_collected": total,
@@ -446,10 +464,7 @@ def retrain_model():
 
 @app.route("/analyze_video", methods=["POST"])
 def analyze_single_video():
-    """개별 영상 Claude 분석"""
-    if not ANTHROPIC_API_KEY:
-        return jsonify({"error": "ANTHROPIC_API_KEY missing"}), 400
-
+    """개별 영상 Gemini/Claude 분석"""
     data = request.json or {}
     video_id = data.get("video_id", "")
     if not video_id:
@@ -460,9 +475,6 @@ def analyze_single_video():
     if not rows:
         return jsonify({"error": "Video not found"})
     v = rows[0]
-
-    import anthropic
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     prompt = f"""Analyze this YouTube video's performance and give actionable insights.
 
@@ -491,12 +503,30 @@ Respond in Korean. Output ONLY valid JSON:
 }}
 """
 
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = response.content[0].text.strip()
+    raw = None
+    # Gemini 우선 시도 (무료)
+    if GEMINI_API_KEY:
+        try:
+            from google import genai
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+            raw = response.text.strip()
+        except Exception as e:
+            print(f"[WARN] Gemini failed: {e}")
+
+    # Gemini 실패 시 Claude
+    if not raw and ANTHROPIC_API_KEY:
+        import anthropic
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514", max_tokens=1500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+
+    if not raw:
+        return jsonify({"error": "No AI API key available (GEMINI or ANTHROPIC)"})
+
     try:
         analysis = json.loads(raw)
     except json.JSONDecodeError:
@@ -504,12 +534,68 @@ Respond in Korean. Output ONLY valid JSON:
         analysis = json.loads(raw)
 
     return jsonify({
-        "title": v["title"],
-        "channel": v["channel"],
-        "views": v.get("views", 0),
-        "likes": v.get("likes", 0),
+        "title": v["title"], "channel": v["channel"],
+        "views": v.get("views", 0), "likes": v.get("likes", 0),
         "analysis": analysis,
     })
+
+
+@app.route("/search_youtube", methods=["POST"])
+def search_youtube():
+    """사이트 내에서 YouTube 검색 → 결과에서 바로 추가"""
+    data = request.json or {}
+    query = data.get("query", "").strip()
+    if not query:
+        return jsonify({"error": "query required"}), 400
+    if not YOUTUBE_API_KEY:
+        return jsonify({"error": "YouTube API key missing"}), 400
+
+    try:
+        youtube = _yt()
+        resp = _safe_yt_execute(youtube.search().list(
+            q=query, part="snippet", type="video",
+            order="viewCount", maxResults=10,
+            videoDuration="medium",
+        ))
+        video_ids = [item["id"]["videoId"] for item in resp.get("items", [])]
+        if not video_ids:
+            return jsonify({"results": []})
+
+        stats_resp = _safe_yt_execute(youtube.videos().list(
+            part="statistics,contentDetails", id=",".join(video_ids)
+        ))
+        stats = {}
+        for v in stats_resp.get("items", []):
+            st = v["statistics"]
+            stats[v["id"]] = {
+                "views": int(st.get("viewCount", 0)),
+                "likes": int(st.get("likeCount", 0)),
+                "comments": int(st.get("commentCount", 0)),
+                "duration": v.get("contentDetails", {}).get("duration", ""),
+            }
+
+        # 이미 추가된 영상 체크
+        existing = {v["video_id"] for v in sb().table("vlog_videos").select("video_id").execute().data}
+
+        results = []
+        for item in resp.get("items", []):
+            vid = item["id"]["videoId"]
+            st = stats.get(vid, {})
+            title = item["snippet"]["title"]
+            channel = item["snippet"]["channelTitle"]
+            if _is_blocked(title, channel):
+                continue
+            results.append({
+                "video_id": vid, "title": title, "channel": channel,
+                "views": st.get("views", 0), "likes": st.get("likes", 0),
+                "published": item["snippet"]["publishedAt"][:10],
+                "duration": st.get("duration", ""),
+                "already_added": vid in existing,
+            })
+        return jsonify({"results": results})
+
+    except QuotaExceededError:
+        return jsonify({"error": "YouTube API 일일 쿼터 초과! 내일 오전에 리셋됩니다."}), 429
 
 
 @app.route("/analyze", methods=["POST"])
