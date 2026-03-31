@@ -4,53 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ ch.name }} — Vlog Trends</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root { --accent:#6C5CE7; --accent2:#A29BFE; --bg:#F8F9FC; --card:#FFFFFF; --border:#E8ECF2; --text:#2D3436; --dim:#8395A7; --green:#00B894; --red:#FF6B6B; --shadow:0 2px 12px rgba(0,0,0,.06); }
+        :root { --accent:#7C3AED; --accent-light:#A78BFA; --bg:#FAFBFE; --card:#FFFFFF; --border:#EEF0F6; --text:#1E293B; --dim:#94A3B8; --green:#10B981; --red:#EF4444; --pink:#EC4899; --shadow:0 1px 3px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04); --shadow-lg:0 4px 24px rgba(0,0,0,.08); }
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
-        .container { max-width:1400px; margin:0 auto; padding:24px; }
-        .btn { padding:8px 16px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; font-size:13px; font-weight:500; }
+        .container { max-width:1440px; margin:0 auto; padding:20px 28px; }
+        .btn { padding:8px 18px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; font-size:13px; font-weight:600; transition:all .2s; display:inline-flex; align-items:center; gap:6px; }
         .btn:hover { border-color:var(--accent); color:var(--accent); }
-        .btn-p { background:var(--accent); color:white; border-color:var(--accent); }
-        .btn-sm { padding:5px 12px; font-size:12px; }
-        .btn-done { background:#F1F2F6; color:var(--dim); border-color:#F1F2F6; cursor:default; }
-        .tag { display:inline-block; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:500; }
-        .tag-purple { background:rgba(108,92,231,.1); color:var(--accent); }
-        .card { background:var(--card); border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:var(--shadow); }
-        .meta { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--dim); }
-        .meta b { color:var(--text); }
+        .btn-p { background:linear-gradient(135deg,var(--accent),#9333EA); color:white; border-color:transparent; }
+        .btn-p:hover { box-shadow:0 4px 16px rgba(124,58,237,.3); }
+        .btn-sm { padding:5px 12px; font-size:12px; border-radius:8px; }
+        .btn-done { background:#F1F5F9; color:var(--dim); border-color:#F1F5F9; cursor:default; }
+        .tag { display:inline-block; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:600; }
+        .tag-purple { background:rgba(124,58,237,.08); color:var(--accent); }
+        .card { background:var(--card); border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:var(--shadow); transition:all .2s; border:1px solid transparent; }
+        .card:hover { box-shadow:var(--shadow-lg); transform:translateY(-2px); }
+        .meta { display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px; color:var(--dim); }
+        .meta b { color:var(--text); font-weight:600; }
         .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
-        .thumb { width:100%; border-radius:12px; margin-bottom:10px; aspect-ratio:16/9; object-fit:cover; }
-        .bar { height:5px; border-radius:3px; background:#F1F2F6; margin-top:8px; }
-        .bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
-        a { color:var(--accent); text-decoration:none; }
-        .ch-header { display:flex; gap:20px; align-items:center; padding:28px; background:var(--card); border-radius:20px; box-shadow:var(--shadow); margin-bottom:28px; }
-        .ch-avatar { width:80px; height:80px; border-radius:50%; border:3px solid var(--accent2); }
-        .ch-stats { display:flex; gap:28px; margin-top:10px; }
-        .ch-stat-val { font-size:1.3em; font-weight:700; color:var(--accent); }
-        .ch-stat-label { font-size:11px; color:var(--dim); font-weight:500; }
+        .thumb { width:100%; border-radius:12px; margin-bottom:10px; aspect-ratio:16/9; object-fit:cover; background:#F1F5F9; }
+        .bar { height:4px; border-radius:3px; background:#F1F5F9; margin-top:8px; }
+        .bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--pink)); }
+        a { color:var(--accent); text-decoration:none; font-weight:500; }
+        .ch-header { display:flex; gap:24px; align-items:center; padding:32px; background:var(--card); border-radius:20px; box-shadow:var(--shadow); margin-bottom:28px; }
+        .ch-avatar { width:84px; height:84px; border-radius:50%; border:3px solid var(--accent-light); }
+        .ch-stats { display:flex; gap:28px; margin-top:12px; }
+        .ch-stat-val { font-size:1.4em; font-weight:800; color:var(--text); letter-spacing:-.5px; }
+        .ch-stat-label { font-size:11px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div style="margin-bottom:18px;"><a href="/" class="btn">← 대시보드</a></div>
+    <div style="margin-bottom:20px;"><a href="/" class="btn">← 대시보드</a></div>
 
     <div class="ch-header">
         {% if ch.thumbnail %}<img class="ch-avatar" src="{{ ch.thumbnail }}">{% endif %}
         <div>
-            <h1 style="font-size:1.5em;">{{ ch.name }}</h1>
+            <h1 style="font-size:1.5em;font-weight:800;">{{ ch.name }}</h1>
             <span class="tag tag-purple">{{ ch.category }}</span>
             <div class="ch-stats">
                 <div><div class="ch-stat-val">{{ "{:,}".format(ch.subscribers) }}</div><div class="ch-stat-label">구독자</div></div>
                 <div><div class="ch-stat-val">{{ "{:,}".format(ch.total_videos) }}</div><div class="ch-stat-label">영상 수</div></div>
                 <div><div class="ch-stat-val">{{ "{:,}".format(ch.total_views) }}</div><div class="ch-stat-label">총 조회수</div></div>
             </div>
-            {% if ch.note %}<p style="font-size:13px;color:var(--dim);margin-top:8px;font-style:italic;">{{ ch.note }}</p>{% endif %}
+            {% if ch.note %}<p style="font-size:13px;color:var(--dim);margin-top:10px;font-style:italic;">{{ ch.note }}</p>{% endif %}
         </div>
     </div>
 
-    <h2 style="color:var(--accent);margin-bottom:18px;">최근 영상</h2>
+    <h2 style="font-weight:800;margin-bottom:18px;">최근 영상</h2>
     <div class="grid">
         {% for v in videos %}
         <div class="card">
@@ -58,7 +60,7 @@
                 {% if v.thumbnail %}<img class="thumb" src="{{ v.thumbnail }}" loading="lazy">
                 {% else %}<img class="thumb" src="https://img.youtube.com/vi/{{ v.video_id }}/mqdefault.jpg" loading="lazy">{% endif %}
             </a>
-            <div style="font-weight:600;margin-bottom:6px;">{{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}</div>
+            <div style="font-weight:650;margin-bottom:6px;font-size:14.5px;">{{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}</div>
             <div class="meta">
                 <span><b>{{ "{:,}".format(v.views) }}</b> 조회수</span>
                 <span><b>{{ "{:,}".format(v.likes) }}</b> 좋아요</span>

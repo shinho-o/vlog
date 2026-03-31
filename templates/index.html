@@ -4,99 +4,215 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vlog Trends</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@20..48,100..700,0..1" rel="stylesheet">
     <style>
         :root {
-            --accent:#6C5CE7; --accent2:#A29BFE; --bg:#F8F9FC; --card:#FFFFFF;
-            --border:#E8ECF2; --text:#2D3436; --dim:#8395A7; --green:#00B894;
-            --red:#FF6B6B; --yellow:#FDCB6E; --blue:#74B9FF; --shadow:0 2px 12px rgba(0,0,0,.06);
+            --accent:#7C3AED; --accent-light:#A78BFA; --accent-bg:rgba(124,58,237,.06);
+            --bg:#FAFBFE; --card:#FFFFFF; --border:#EEF0F6; --text:#1E293B;
+            --dim:#94A3B8; --green:#10B981; --red:#EF4444; --yellow:#F59E0B;
+            --blue:#3B82F6; --pink:#EC4899;
+            --shadow:0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+            --shadow-lg:0 4px 24px rgba(0,0,0,.08);
+            --radius:16px;
         }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
-        .container { max-width:1400px; margin:0 auto; padding:24px; }
+        body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; -webkit-font-smoothing:antialiased; }
+        .container { max-width:1440px; margin:0 auto; padding:20px 28px; }
 
-        header { display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; }
-        header h1 { font-size:1.6em; font-weight:700; }
-        header h1 span { color:var(--accent); }
+        /* Header */
+        header {
+            display:flex; justify-content:space-between; align-items:center;
+            padding:16px 0 24px; margin-bottom:8px;
+        }
+        .logo { display:flex; align-items:center; gap:10px; }
+        .logo-icon {
+            width:40px; height:40px; border-radius:12px;
+            background:linear-gradient(135deg,var(--accent),var(--pink));
+            display:flex; align-items:center; justify-content:center;
+            color:white; font-size:20px;
+        }
+        .logo h1 { font-size:1.4em; font-weight:800; letter-spacing:-.5px; }
+        .logo h1 span { background:linear-gradient(135deg,var(--accent),var(--pink)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .header-actions { display:flex; gap:8px; }
 
-        .tabs { display:flex; gap:4px; margin-bottom:28px; background:var(--card); border-radius:12px; padding:4px; box-shadow:var(--shadow); }
-        .tab { padding:10px 22px; cursor:pointer; border:none; background:none; color:var(--dim); font-size:14px; font-weight:500; border-radius:8px; transition:all .2s; }
-        .tab:hover { color:var(--text); background:#F1F2F6; }
-        .tab.active { color:white; background:var(--accent); }
-        .tab-content { display:none; }
+        /* Stats */
+        .stats-grid {
+            display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+            gap:14px; margin-bottom:28px;
+        }
+        .stat-card {
+            background:var(--card); border-radius:var(--radius); padding:20px;
+            box-shadow:var(--shadow); position:relative; overflow:hidden;
+        }
+        .stat-card::before {
+            content:''; position:absolute; top:0; left:0; right:0; height:3px;
+            background:linear-gradient(90deg,var(--accent),var(--accent-light));
+        }
+        .stat-value { font-size:1.9em; font-weight:800; color:var(--text); letter-spacing:-1px; }
+        .stat-label { font-size:11px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.8px; margin-top:2px; }
+
+        /* Tabs */
+        .tabs {
+            display:flex; gap:2px; margin-bottom:24px; background:var(--card);
+            border-radius:12px; padding:4px; box-shadow:var(--shadow); overflow-x:auto;
+        }
+        .tab {
+            padding:10px 22px; cursor:pointer; border:none; background:none;
+            color:var(--dim); font-size:13.5px; font-weight:600; border-radius:8px;
+            transition:all .2s; white-space:nowrap; display:flex; align-items:center; gap:6px;
+        }
+        .tab:hover { color:var(--text); background:#F1F5F9; }
+        .tab.active { color:white; background:var(--accent); box-shadow:0 2px 8px rgba(124,58,237,.3); }
+        .tab-content { display:none; animation:fadeIn .3s ease; }
         .tab-content.active { display:block; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 
-        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:28px; }
-        .stat-card { background:var(--card); border-radius:16px; padding:20px; box-shadow:var(--shadow); }
-        .stat-value { font-size:1.8em; font-weight:700; color:var(--accent); }
-        .stat-label { font-size:12px; color:var(--dim); margin-top:2px; font-weight:500; letter-spacing:.3px; }
-
-        .card { background:var(--card); border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:var(--shadow); transition:transform .15s; }
-        .card:hover { transform:translateY(-2px); }
-        .card-title { font-size:15px; font-weight:600; margin-bottom:6px; }
-        .meta { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--dim); margin:4px 0; }
+        /* Cards */
+        .card {
+            background:var(--card); border-radius:var(--radius); padding:18px;
+            margin-bottom:14px; box-shadow:var(--shadow); transition:all .2s;
+            border:1px solid transparent;
+        }
+        .card:hover { box-shadow:var(--shadow-lg); border-color:var(--border); transform:translateY(-2px); }
+        .card-title { font-size:14.5px; font-weight:650; margin-bottom:6px; line-height:1.4; }
+        .meta { display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px; color:var(--dim); margin:6px 0; }
         .meta b { color:var(--text); font-weight:600; }
 
-        .tag { display:inline-block; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:500; margin:2px; }
-        .tag-purple { background:rgba(108,92,231,.1); color:var(--accent); }
-        .tag-blue { background:rgba(116,185,255,.15); color:#0984E3; }
-        .tag-green { background:rgba(0,184,148,.1); color:var(--green); }
-        .tag-off { background:#F1F2F6; color:var(--dim); }
-
-        .btn { padding:8px 16px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; font-size:13px; font-weight:500; transition:all .2s; }
-        .btn:hover { border-color:var(--accent); color:var(--accent); }
-        .btn-p { background:var(--accent); color:white; border-color:var(--accent); }
-        .btn-p:hover { background:#5A4BD1; }
-        .btn-d { color:var(--red); border-color:var(--red); }
-        .btn-d:hover { background:var(--red); color:white; }
-        .btn-sm { padding:5px 12px; font-size:12px; }
-
-        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
-        .thumb { width:100%; border-radius:12px; margin-bottom:10px; aspect-ratio:16/9; object-fit:cover; }
-
-        .bar { height:5px; border-radius:3px; background:#F1F2F6; margin-top:8px; }
-        .bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
-
-        .filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
-        .fbtn { padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:var(--card); color:var(--dim); cursor:pointer; font-size:12px; font-weight:500; }
-        .fbtn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,92,231,.08); }
-
-        .form-card { background:var(--card); border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:var(--shadow); }
-        .form-card h3 { font-size:15px; font-weight:600; margin-bottom:14px; color:var(--accent); }
-        .form-card input, .form-card select, .form-card textarea {
-            width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--border);
-            background:var(--bg); color:var(--text); font-size:14px; font-family:inherit;
+        /* Tags */
+        .tag {
+            display:inline-flex; align-items:center; padding:3px 12px; border-radius:20px;
+            font-size:11px; font-weight:600; margin:2px; gap:4px;
         }
-        .form-card input:focus, .form-card select:focus, .form-card textarea:focus { outline:none; border-color:var(--accent); }
-        .form-card label { font-size:12px; color:var(--dim); margin-bottom:4px; display:block; font-weight:500; }
-        .form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
-        .form-row > * { flex:1; min-width:200px; }
+        .tag-purple { background:rgba(124,58,237,.08); color:var(--accent); }
+        .tag-blue { background:rgba(59,130,246,.08); color:var(--blue); }
+        .tag-green { background:rgba(16,185,129,.08); color:var(--green); }
+        .tag-pink { background:rgba(236,72,153,.08); color:var(--pink); }
+        .tag-off { background:#F1F5F9; color:var(--dim); }
 
-        a { color:var(--accent); text-decoration:none; }
+        /* Buttons */
+        .btn {
+            padding:8px 18px; border-radius:10px; border:1px solid var(--border);
+            background:var(--card); color:var(--text); cursor:pointer;
+            font-size:13px; font-weight:600; transition:all .2s;
+            display:inline-flex; align-items:center; gap:6px;
+        }
+        .btn:hover { border-color:var(--accent); color:var(--accent); box-shadow:0 2px 8px rgba(124,58,237,.1); }
+        .btn-p {
+            background:linear-gradient(135deg,var(--accent),#9333EA);
+            color:white; border-color:transparent;
+        }
+        .btn-p:hover { box-shadow:0 4px 16px rgba(124,58,237,.3); transform:translateY(-1px); }
+        .btn-d { color:var(--red); border-color:rgba(239,68,68,.3); }
+        .btn-d:hover { background:var(--red); color:white; border-color:var(--red); }
+        .btn-sm { padding:5px 12px; font-size:12px; border-radius:8px; }
+        .btn-ghost { border:none; background:none; }
+
+        /* Grid */
+        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+        .thumb {
+            width:100%; border-radius:12px; margin-bottom:10px;
+            aspect-ratio:16/9; object-fit:cover; background:#F1F5F9;
+        }
+
+        /* Progress bar */
+        .bar { height:4px; border-radius:3px; background:#F1F5F9; margin-top:8px; overflow:hidden; }
+        .bar-fill {
+            height:100%; border-radius:3px;
+            background:linear-gradient(90deg,var(--accent),var(--pink));
+            transition:width .6s ease;
+        }
+
+        /* Filters */
+        .filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
+        .fbtn {
+            padding:6px 16px; border-radius:20px; border:1.5px solid var(--border);
+            background:var(--card); color:var(--dim); cursor:pointer;
+            font-size:12px; font-weight:600; transition:all .2s;
+        }
+        .fbtn:hover { border-color:var(--accent-light); color:var(--accent); }
+        .fbtn.active {
+            border-color:var(--accent); color:white; background:var(--accent);
+            box-shadow:0 2px 8px rgba(124,58,237,.2);
+        }
+
+        /* Forms */
+        .form-card {
+            background:var(--card); border-radius:var(--radius); padding:22px;
+            margin-bottom:22px; box-shadow:var(--shadow);
+            border:1px dashed var(--border);
+        }
+        .form-card h3 {
+            font-size:14px; font-weight:700; margin-bottom:14px;
+            display:flex; align-items:center; gap:8px;
+        }
+        .form-card h3::before {
+            content:''; width:4px; height:18px; border-radius:2px;
+            background:linear-gradient(180deg,var(--accent),var(--pink));
+        }
+        .form-card input, .form-card select, .form-card textarea {
+            width:100%; padding:10px 14px; border-radius:10px; border:1.5px solid var(--border);
+            background:var(--bg); color:var(--text); font-size:14px; font-family:inherit;
+            transition:border-color .2s;
+        }
+        .form-card input:focus, .form-card select:focus, .form-card textarea:focus {
+            outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,58,237,.08);
+        }
+        .form-card label { font-size:12px; color:var(--dim); margin-bottom:5px; display:block; font-weight:600; }
+        .form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+        .form-row > * { flex:1; min-width:180px; }
+
+        a { color:var(--accent); text-decoration:none; font-weight:500; }
         a:hover { text-decoration:underline; }
 
+        /* Channel card */
         .ch-card { display:flex; gap:14px; align-items:center; }
-        .ch-avatar { width:52px; height:52px; border-radius:50%; border:2px solid var(--accent2); }
+        .ch-avatar {
+            width:52px; height:52px; border-radius:50%;
+            border:2.5px solid var(--accent-light); object-fit:cover;
+        }
 
-        #collectResult { display:none; margin-bottom:16px; padding:14px; background:rgba(0,184,148,.08); border:1px solid var(--green); border-radius:12px; font-size:13px; white-space:pre-line; color:var(--green); }
+        /* Result banner */
+        #collectResult {
+            display:none; margin-bottom:18px; padding:14px 18px;
+            background:rgba(16,185,129,.06); border:1.5px solid var(--green);
+            border-radius:12px; font-size:13px; white-space:pre-line; color:var(--green);
+            font-weight:500;
+        }
+
+        /* Empty state */
+        .empty { text-align:center; padding:48px 20px; color:var(--dim); }
+        .empty-icon { font-size:48px; margin-bottom:12px; opacity:.3; }
+
+        /* Responsive */
+        @media(max-width:768px) {
+            .container { padding:16px; }
+            .grid { grid-template-columns:1fr; }
+            .stats-grid { grid-template-columns:repeat(3,1fr); }
+            .form-row { flex-direction:column; }
+            .form-row > * { min-width:100%; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <header>
-        <h1><span>Vlog</span> Trends</h1>
-        <div style="display:flex;gap:8px;">
-            <button class="btn" onclick="toggleHidden()">숨김 ({{ hidden_count }})</button>
+        <div class="logo">
+            <div class="logo-icon">V</div>
+            <h1><span>Vlog</span> Trends</h1>
+        </div>
+        <div class="header-actions">
+            <button class="btn" onclick="toggleHidden()">숨김 {{ hidden_count }}</button>
             <button class="btn btn-p" id="collectBtn" onclick="collectVideos()">영상 수집</button>
         </div>
     </header>
 
     <div class="stats-grid">
-        <div class="stat-card"><div class="stat-value">{{ videos|length }}</div><div class="stat-label">VIDEOS</div></div>
-        <div class="stat-card"><div class="stat-value">{{ saved_channels|length }}</div><div class="stat-label">CHANNELS</div></div>
-        <div class="stat-card"><div class="stat-value">{{ search_queries|length }}</div><div class="stat-label">KEYWORDS</div></div>
-        <div class="stat-card"><div class="stat-value">{{ "{:,}".format(total_views) }}</div><div class="stat-label">TOTAL VIEWS</div></div>
-        <div class="stat-card"><div class="stat-value">{{ runs|length }}</div><div class="stat-label">RUNS</div></div>
+        <div class="stat-card"><div class="stat-value">{{ videos|length }}</div><div class="stat-label">Videos</div></div>
+        <div class="stat-card"><div class="stat-value">{{ saved_channels|length }}</div><div class="stat-label">Channels</div></div>
+        <div class="stat-card"><div class="stat-value">{{ search_queries|length }}</div><div class="stat-label">Keywords</div></div>
+        <div class="stat-card"><div class="stat-value">{{ "{:,}".format(total_views) }}</div><div class="stat-label">Total Views</div></div>
+        <div class="stat-card"><div class="stat-value">{{ runs|length }}</div><div class="stat-label">Runs</div></div>
     </div>
 
     <div class="tabs">
@@ -120,10 +236,12 @@
                 <button type="submit" class="btn btn-p">+ 영상 추가</button>
             </form>
         </div>
+        {% if categories %}
         <div class="filters">
             <button class="fbtn active" data-f="all">전체</button>
             {% for c in categories %}<button class="fbtn" data-f="{{ c }}">{{ c }}</button>{% endfor %}
         </div>
+        {% endif %}
         <div class="grid" id="vgrid">
             {% for v in videos %}
             <div class="card" data-concept="{{ v.category }}">
@@ -150,25 +268,26 @@
                 </div>
             </div>
             {% endfor %}
+            {% if not videos %}
+            <div class="empty" style="grid-column:1/-1;">
+                <div class="empty-icon">🎬</div>
+                <p>아직 영상이 없습니다.<br>위에서 URL을 추가하거나 수집을 실행하세요.</p>
+            </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- 채널 -->
     <div id="channels" class="tab-content">
         <div class="form-card">
-            <h3>+ 채널 추가</h3>
+            <h3>채널 추가</h3>
             <form action="/add_channel" method="POST" class="form-row">
                 <div><label>채널 URL / @핸들</label><input name="channel" placeholder="@채널 또는 YouTube URL" required></div>
                 <div style="flex:0 0 150px;">
                     <label>카테고리</label>
                     <select name="category" style="width:100%;">
-                        <option>daily vlog</option>
-                        <option>travel</option>
-                        <option>food</option>
-                        <option>lifestyle</option>
-                        <option>tech</option>
-                        <option>study</option>
-                        <option>other</option>
+                        <option>daily vlog</option><option>travel</option><option>food</option>
+                        <option>lifestyle</option><option>tech</option><option>study</option><option>other</option>
                     </select>
                 </div>
                 <div><label>메모</label><input name="note" placeholder="이 채널의 특징"></div>
@@ -181,9 +300,7 @@
         {% for ch in saved_channels %}
         <div class="card">
             <div class="ch-card" style="margin-bottom:10px;">
-                {% if ch.thumbnail %}
-                <img class="ch-avatar" src="{{ ch.thumbnail }}">
-                {% endif %}
+                {% if ch.thumbnail %}<img class="ch-avatar" src="{{ ch.thumbnail }}">{% endif %}
                 <div>
                     <div class="card-title" style="margin-bottom:2px;">{{ ch.name }}</div>
                     <span class="tag tag-purple">{{ ch.category }}</span>
@@ -197,9 +314,7 @@
             {% endif %}
             {% if ch.note %}<div style="font-size:13px;color:var(--dim);font-style:italic;margin-top:4px;">{{ ch.note }}</div>{% endif %}
             <div style="margin-top:10px;display:flex;gap:6px;">
-                {% if ch.channel_id %}
-                <a href="/channel/{{ ch.channel_id }}" class="btn btn-sm btn-p">영상 보기</a>
-                {% endif %}
+                {% if ch.channel_id %}<a href="/channel/{{ ch.channel_id }}" class="btn btn-sm btn-p">영상 보기</a>{% endif %}
                 <button class="btn btn-sm btn-d" onclick="removeChannel('{{ ch.name }}')">삭제</button>
             </div>
         </div>
@@ -208,7 +323,10 @@
         {% endif %}
 
         {% if channel_stats %}
-        <h3 style="margin:24px 0 14px;color:var(--accent);">수집 데이터 기반 채널</h3>
+        <h3 style="margin:28px 0 16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+            <span style="width:4px;height:18px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--pink));display:inline-block;"></span>
+            수집 데이터 기반
+        </h3>
         {% for name, ch in channel_stats.items() %}
         <div class="card">
             <div class="card-title">{{ name }}</div>
@@ -225,22 +343,17 @@
     <!-- 수집 설정 -->
     <div id="collect" class="tab-content">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <h3 style="color:var(--accent);">수집 키워드</h3>
+            <h3 style="font-weight:700;">수집 키워드</h3>
             <button class="btn btn-p" id="collectBtn2" onclick="collectVideos()">전체 수집 실행</button>
         </div>
         <div class="form-card">
             <form action="/add_query" method="POST" class="form-row">
-                <div style="flex:2;"><label>검색 키워드</label><input name="query" placeholder="예: korean vlog, daily routine vlog" required></div>
+                <div style="flex:2;"><label>검색 키워드</label><input name="query" placeholder="예: korean vlog, daily routine" required></div>
                 <div style="flex:0 0 150px;">
                     <label>카테고리</label>
                     <select name="category" style="width:100%;">
-                        <option>daily vlog</option>
-                        <option>travel</option>
-                        <option>food</option>
-                        <option>lifestyle</option>
-                        <option>tech</option>
-                        <option>study</option>
-                        <option>other</option>
+                        <option>daily vlog</option><option>travel</option><option>food</option>
+                        <option>lifestyle</option><option>tech</option><option>study</option><option>other</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-p">+ 추가</button>
@@ -251,12 +364,12 @@
 
         <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr));">
         {% for q in search_queries %}
-        <div class="card" style="{% if not q.enabled %}opacity:.4;{% endif %}">
+        <div class="card" style="{% if not q.enabled %}opacity:.35;{% endif %}">
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div>
                     <div class="card-title">{{ q.query }}</div>
                     <span class="tag tag-purple">{{ q.category }}</span>
-                    {% if q.enabled %}<span class="tag tag-green">활성</span>{% else %}<span class="tag" style="background:rgba(255,107,107,.1);color:var(--red);">비활성</span>{% endif %}
+                    {% if q.enabled %}<span class="tag tag-green">활성</span>{% else %}<span class="tag" style="background:rgba(239,68,68,.08);color:var(--red);">비활성</span>{% endif %}
                 </div>
                 <div style="display:flex;gap:4px;">
                     <button class="btn btn-sm" onclick="toggleQuery({{ q.id }})">{{ '끄기' if q.enabled else '켜기' }}</button>
@@ -270,32 +383,46 @@
 
     <!-- 분석 -->
     <div id="analytics" class="tab-content">
-        <h3 style="color:var(--accent);margin-bottom:20px;">카테고리별 통계</h3>
+        <h3 style="font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+            <span style="width:4px;height:18px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--pink));display:inline-block;"></span>
+            카테고리별 통계
+        </h3>
         {% for cat, cs in cat_stats.items() %}
         <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div class="card-title">{{ cat }}</div>
-                <span class="tag tag-purple">{{ cs.count }}개 영상</span>
+                <span class="tag tag-purple">{{ cs.count }}개</span>
             </div>
             <div class="meta">
-                <span>총 조회수: <b>{{ "{:,}".format(cs.total_views) }}</b></span>
-                <span>총 좋아요: <b>{{ "{:,}".format(cs.total_likes) }}</b></span>
-                <span>평균 조회수: <b>{{ "{:,}".format(cs.avg_views) }}</b></span>
+                <span>총 조회수 <b>{{ "{:,}".format(cs.total_views) }}</b></span>
+                <span>총 좋아요 <b>{{ "{:,}".format(cs.total_likes) }}</b></span>
+                <span>평균 조회수 <b>{{ "{:,}".format(cs.avg_views) }}</b></span>
             </div>
+            <div class="bar"><div class="bar-fill" style="width:{{ [cs.total_views * 100 // (total_views if total_views > 0 else 1), 100]|min }}%"></div></div>
         </div>
         {% endfor %}
 
         {% if runs %}
-        <h3 style="color:var(--accent);margin:24px 0 14px;">최근 실행 기록</h3>
+        <h3 style="font-weight:700;margin:28px 0 16px;display:flex;align-items:center;gap:8px;">
+            <span style="width:4px;height:18px;border-radius:2px;background:linear-gradient(180deg,var(--blue),var(--accent));display:inline-block;"></span>
+            실행 기록
+        </h3>
         {% for r in runs %}
         <div class="card">
             <div class="meta">
                 <span><b>{{ r.date }}</b></span>
-                <span>{{ r.videos_collected }}개 수집</span>
+                <span><b>{{ r.videos_collected }}</b>개 수집</span>
                 <span>{{ r.summary }}</span>
             </div>
         </div>
         {% endfor %}
+        {% endif %}
+
+        {% if not cat_stats and not runs %}
+        <div class="empty">
+            <div class="empty-icon">📊</div>
+            <p>데이터가 없습니다. 영상을 수집하면 분석이 시작됩니다.</p>
+        </div>
         {% endif %}
     </div>
 </div>
