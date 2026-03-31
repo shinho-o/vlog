@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vlog Trends</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent:#6C5CE7; --accent2:#A29BFE; --bg:#F8F9FC; --card:#FFFFFF;
+            --border:#E8ECF2; --text:#2D3436; --dim:#8395A7; --green:#00B894;
+            --red:#FF6B6B; --yellow:#FDCB6E; --blue:#74B9FF; --shadow:0 2px 12px rgba(0,0,0,.06);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+        .container { max-width:1400px; margin:0 auto; padding:24px; }
+
+        header { display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; }
+        header h1 { font-size:1.6em; font-weight:700; }
+        header h1 span { color:var(--accent); }
+
+        .tabs { display:flex; gap:4px; margin-bottom:28px; background:var(--card); border-radius:12px; padding:4px; box-shadow:var(--shadow); }
+        .tab { padding:10px 22px; cursor:pointer; border:none; background:none; color:var(--dim); font-size:14px; font-weight:500; border-radius:8px; transition:all .2s; }
+        .tab:hover { color:var(--text); background:#F1F2F6; }
+        .tab.active { color:white; background:var(--accent); }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+
+        .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:28px; }
+        .stat-card { background:var(--card); border-radius:16px; padding:20px; box-shadow:var(--shadow); }
+        .stat-value { font-size:1.8em; font-weight:700; color:var(--accent); }
+        .stat-label { font-size:12px; color:var(--dim); margin-top:2px; font-weight:500; letter-spacing:.3px; }
+
+        .card { background:var(--card); border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:var(--shadow); transition:transform .15s; }
+        .card:hover { transform:translateY(-2px); }
+        .card-title { font-size:15px; font-weight:600; margin-bottom:6px; }
+        .meta { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--dim); margin:4px 0; }
+        .meta b { color:var(--text); font-weight:600; }
+
+        .tag { display:inline-block; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:500; margin:2px; }
+        .tag-purple { background:rgba(108,92,231,.1); color:var(--accent); }
+        .tag-blue { background:rgba(116,185,255,.15); color:#0984E3; }
+        .tag-green { background:rgba(0,184,148,.1); color:var(--green); }
+        .tag-off { background:#F1F2F6; color:var(--dim); }
+
+        .btn { padding:8px 16px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; font-size:13px; font-weight:500; transition:all .2s; }
+        .btn:hover { border-color:var(--accent); color:var(--accent); }
+        .btn-p { background:var(--accent); color:white; border-color:var(--accent); }
+        .btn-p:hover { background:#5A4BD1; }
+        .btn-d { color:var(--red); border-color:var(--red); }
+        .btn-d:hover { background:var(--red); color:white; }
+        .btn-sm { padding:5px 12px; font-size:12px; }
+
+        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+        .thumb { width:100%; border-radius:12px; margin-bottom:10px; aspect-ratio:16/9; object-fit:cover; }
+
+        .bar { height:5px; border-radius:3px; background:#F1F2F6; margin-top:8px; }
+        .bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+
+        .filters { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px; }
+        .fbtn { padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:var(--card); color:var(--dim); cursor:pointer; font-size:12px; font-weight:500; }
+        .fbtn.active { border-color:var(--accent); color:var(--accent); background:rgba(108,92,231,.08); }
+
+        .form-card { background:var(--card); border-radius:16px; padding:20px; margin-bottom:20px; box-shadow:var(--shadow); }
+        .form-card h3 { font-size:15px; font-weight:600; margin-bottom:14px; color:var(--accent); }
+        .form-card input, .form-card select, .form-card textarea {
+            width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--border);
+            background:var(--bg); color:var(--text); font-size:14px; font-family:inherit;
+        }
+        .form-card input:focus, .form-card select:focus, .form-card textarea:focus { outline:none; border-color:var(--accent); }
+        .form-card label { font-size:12px; color:var(--dim); margin-bottom:4px; display:block; font-weight:500; }
+        .form-row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+        .form-row > * { flex:1; min-width:200px; }
+
+        a { color:var(--accent); text-decoration:none; }
+        a:hover { text-decoration:underline; }
+
+        .ch-card { display:flex; gap:14px; align-items:center; }
+        .ch-avatar { width:52px; height:52px; border-radius:50%; border:2px solid var(--accent2); }
+
+        #collectResult { display:none; margin-bottom:16px; padding:14px; background:rgba(0,184,148,.08); border:1px solid var(--green); border-radius:12px; font-size:13px; white-space:pre-line; color:var(--green); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1><span>Vlog</span> Trends</h1>
+        <div style="display:flex;gap:8px;">
+            <button class="btn" onclick="toggleHidden()">숨김 ({{ hidden_count }})</button>
+            <button class="btn btn-p" id="collectBtn" onclick="collectVideos()">영상 수집</button>
+        </div>
+    </header>
+
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value">{{ videos|length }}</div><div class="stat-label">VIDEOS</div></div>
+        <div class="stat-card"><div class="stat-value">{{ saved_channels|length }}</div><div class="stat-label">CHANNELS</div></div>
+        <div class="stat-card"><div class="stat-value">{{ search_queries|length }}</div><div class="stat-label">KEYWORDS</div></div>
+        <div class="stat-card"><div class="stat-value">{{ "{:,}".format(total_views) }}</div><div class="stat-label">TOTAL VIEWS</div></div>
+        <div class="stat-card"><div class="stat-value">{{ runs|length }}</div><div class="stat-label">RUNS</div></div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" data-tab="videos">영상</button>
+        <button class="tab" data-tab="channels">채널</button>
+        <button class="tab" data-tab="collect">수집 설정</button>
+        <button class="tab" data-tab="analytics">분석</button>
+    </div>
+
+    <!-- 영상 -->
+    <div id="videos" class="tab-content active">
+        <div class="form-card">
+            <form action="/add_video" method="POST" class="form-row">
+                <div style="flex:2;min-width:250px;"><input name="url" placeholder="YouTube URL 붙여넣기" required></div>
+                <div style="flex:0 0 150px;">
+                    <select name="category">
+                        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                        <option value="Uncategorized">기타</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-p">+ 영상 추가</button>
+            </form>
+        </div>
+        <div class="filters">
+            <button class="fbtn active" data-f="all">전체</button>
+            {% for c in categories %}<button class="fbtn" data-f="{{ c }}">{{ c }}</button>{% endfor %}
+        </div>
+        <div class="grid" id="vgrid">
+            {% for v in videos %}
+            <div class="card" data-concept="{{ v.category }}">
+                <a href="https://youtube.com/watch?v={{ v.video_id }}" target="_blank">
+                    <img class="thumb" src="https://img.youtube.com/vi/{{ v.video_id }}/mqdefault.jpg" loading="lazy">
+                </a>
+                <div class="card-title">{{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}</div>
+                <div class="meta">
+                    <span>{{ v.channel }}</span>
+                    <span><b>{{ "{:,}".format(v.views) }}</b> views</span>
+                    <span><b>{{ "{:,}".format(v.likes) }}</b> likes</span>
+                </div>
+                <div>
+                    <span class="tag tag-purple">{{ v.category }}</span>
+                    <span class="tag tag-off">{{ v.date_collected }}</span>
+                    {% if v.duration %}<span class="tag tag-blue">{{ v.duration }}</span>{% endif %}
+                </div>
+                {% if v.views > 0 %}
+                <div class="bar"><div class="bar-fill" style="width:{{ [v.likes * 100 // v.views, 100]|min }}%"></div></div>
+                {% endif %}
+                <div style="margin-top:10px;display:flex;gap:6px;">
+                    <a href="https://youtube.com/watch?v={{ v.video_id }}" target="_blank" class="btn btn-sm">보기</a>
+                    <button class="btn btn-sm btn-d" onclick="hideVideo('{{ v.video_id }}')">숨기기</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 채널 -->
+    <div id="channels" class="tab-content">
+        <div class="form-card">
+            <h3>+ 채널 추가</h3>
+            <form action="/add_channel" method="POST" class="form-row">
+                <div><label>채널 URL / @핸들</label><input name="channel" placeholder="@채널 또는 YouTube URL" required></div>
+                <div style="flex:0 0 150px;">
+                    <label>카테고리</label>
+                    <select name="category" style="width:100%;">
+                        <option>daily vlog</option>
+                        <option>travel</option>
+                        <option>food</option>
+                        <option>lifestyle</option>
+                        <option>tech</option>
+                        <option>study</option>
+                        <option>other</option>
+                    </select>
+                </div>
+                <div><label>메모</label><input name="note" placeholder="이 채널의 특징"></div>
+                <button type="submit" class="btn btn-p">+ 추가</button>
+            </form>
+        </div>
+
+        {% if saved_channels %}
+        <div class="grid">
+        {% for ch in saved_channels %}
+        <div class="card">
+            <div class="ch-card" style="margin-bottom:10px;">
+                {% if ch.thumbnail %}
+                <img class="ch-avatar" src="{{ ch.thumbnail }}">
+                {% endif %}
+                <div>
+                    <div class="card-title" style="margin-bottom:2px;">{{ ch.name }}</div>
+                    <span class="tag tag-purple">{{ ch.category }}</span>
+                </div>
+            </div>
+            {% if ch.subscribers %}
+            <div class="meta">
+                <span><b>{{ "{:,}".format(ch.subscribers) }}</b> 구독자</span>
+                <span><b>{{ "{:,}".format(ch.get('total_videos', 0)) }}</b> 영상</span>
+            </div>
+            {% endif %}
+            {% if ch.note %}<div style="font-size:13px;color:var(--dim);font-style:italic;margin-top:4px;">{{ ch.note }}</div>{% endif %}
+            <div style="margin-top:10px;display:flex;gap:6px;">
+                {% if ch.channel_id %}
+                <a href="/channel/{{ ch.channel_id }}" class="btn btn-sm btn-p">영상 보기</a>
+                {% endif %}
+                <button class="btn btn-sm btn-d" onclick="removeChannel('{{ ch.name }}')">삭제</button>
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if channel_stats %}
+        <h3 style="margin:24px 0 14px;color:var(--accent);">수집 데이터 기반 채널</h3>
+        {% for name, ch in channel_stats.items() %}
+        <div class="card">
+            <div class="card-title">{{ name }}</div>
+            <div class="meta">
+                <span><b>{{ ch.count }}</b>개 영상</span>
+                <span><b>{{ "{:,}".format(ch.total_views) }}</b> 조회수</span>
+                <span><b>{{ "%.1f"|format(ch.engagement) }}%</b> 참여율</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- 수집 설정 -->
+    <div id="collect" class="tab-content">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="color:var(--accent);">수집 키워드</h3>
+            <button class="btn btn-p" id="collectBtn2" onclick="collectVideos()">전체 수집 실행</button>
+        </div>
+        <div class="form-card">
+            <form action="/add_query" method="POST" class="form-row">
+                <div style="flex:2;"><label>검색 키워드</label><input name="query" placeholder="예: korean vlog, daily routine vlog" required></div>
+                <div style="flex:0 0 150px;">
+                    <label>카테고리</label>
+                    <select name="category" style="width:100%;">
+                        <option>daily vlog</option>
+                        <option>travel</option>
+                        <option>food</option>
+                        <option>lifestyle</option>
+                        <option>tech</option>
+                        <option>study</option>
+                        <option>other</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-p">+ 추가</button>
+            </form>
+        </div>
+
+        <div id="collectResult"></div>
+
+        <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr));">
+        {% for q in search_queries %}
+        <div class="card" style="{% if not q.enabled %}opacity:.4;{% endif %}">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div class="card-title">{{ q.query }}</div>
+                    <span class="tag tag-purple">{{ q.category }}</span>
+                    {% if q.enabled %}<span class="tag tag-green">활성</span>{% else %}<span class="tag" style="background:rgba(255,107,107,.1);color:var(--red);">비활성</span>{% endif %}
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <button class="btn btn-sm" onclick="toggleQuery({{ q.id }})">{{ '끄기' if q.enabled else '켜기' }}</button>
+                    <button class="btn btn-sm btn-d" onclick="deleteQuery({{ q.id }})">삭제</button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+
+    <!-- 분석 -->
+    <div id="analytics" class="tab-content">
+        <h3 style="color:var(--accent);margin-bottom:20px;">카테고리별 통계</h3>
+        {% for cat, cs in cat_stats.items() %}
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="card-title">{{ cat }}</div>
+                <span class="tag tag-purple">{{ cs.count }}개 영상</span>
+            </div>
+            <div class="meta">
+                <span>총 조회수: <b>{{ "{:,}".format(cs.total_views) }}</b></span>
+                <span>총 좋아요: <b>{{ "{:,}".format(cs.total_likes) }}</b></span>
+                <span>평균 조회수: <b>{{ "{:,}".format(cs.avg_views) }}</b></span>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if runs %}
+        <h3 style="color:var(--accent);margin:24px 0 14px;">최근 실행 기록</h3>
+        {% for r in runs %}
+        <div class="card">
+            <div class="meta">
+                <span><b>{{ r.date }}</b></span>
+                <span>{{ r.videos_collected }}개 수집</span>
+                <span>{{ r.summary }}</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+        document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById(t.dataset.tab).classList.add('active');
+    });
+});
+document.querySelectorAll('.fbtn').forEach(b=>{
+    b.addEventListener('click',()=>{
+        document.querySelectorAll('.fbtn').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        const f=b.dataset.f;
+        document.querySelectorAll('#vgrid .card').forEach(c=>{
+            c.style.display=(f==='all'||c.dataset.concept===f)?'':'none';
+        });
+    });
+});
+let showH=false;
+function toggleHidden(){ showH=!showH; document.querySelectorAll('.dim').forEach(e=>e.style.display=showH?'':'none'); }
+function hideVideo(vid){ fetch('/toggle_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:vid})}).then(()=>location.reload()); }
+function removeChannel(n){ if(!confirm(n+' 삭제?'))return; fetch('/remove_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(()=>location.reload()); }
+function toggleQuery(id){ fetch('/toggle_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
+function deleteQuery(id){ if(!confirm('삭제?'))return; fetch('/delete_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
+function collectVideos(){
+    const b=document.getElementById('collectBtn');const b2=document.getElementById('collectBtn2');
+    b.textContent='수집 중...';b.disabled=true;if(b2){b2.textContent='수집 중...';b2.disabled=true;}
+    const res=document.getElementById('collectResult');res.style.display='none';
+    fetch('/collect_videos',{method:'POST'}).then(r=>r.json()).then(d=>{
+        res.style.display='block';res.textContent=d.message;
+        b.textContent='영상 수집';b.disabled=false;if(b2){b2.textContent='전체 수집 실행';b2.disabled=false;}
+    }).catch(()=>{b.textContent='영상 수집';b.disabled=false;if(b2){b2.textContent='전체 수집 실행';b2.disabled=false;}});
+}
+</script>
+</body>
+</html>

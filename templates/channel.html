@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ ch.name }} — Vlog Trends</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent:#6C5CE7; --accent2:#A29BFE; --bg:#F8F9FC; --card:#FFFFFF; --border:#E8ECF2; --text:#2D3436; --dim:#8395A7; --green:#00B894; --red:#FF6B6B; --shadow:0 2px 12px rgba(0,0,0,.06); }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+        .container { max-width:1400px; margin:0 auto; padding:24px; }
+        .btn { padding:8px 16px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); cursor:pointer; font-size:13px; font-weight:500; }
+        .btn:hover { border-color:var(--accent); color:var(--accent); }
+        .btn-p { background:var(--accent); color:white; border-color:var(--accent); }
+        .btn-sm { padding:5px 12px; font-size:12px; }
+        .btn-done { background:#F1F2F6; color:var(--dim); border-color:#F1F2F6; cursor:default; }
+        .tag { display:inline-block; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:500; }
+        .tag-purple { background:rgba(108,92,231,.1); color:var(--accent); }
+        .card { background:var(--card); border-radius:16px; padding:18px; margin-bottom:14px; box-shadow:var(--shadow); }
+        .meta { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--dim); }
+        .meta b { color:var(--text); }
+        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+        .thumb { width:100%; border-radius:12px; margin-bottom:10px; aspect-ratio:16/9; object-fit:cover; }
+        .bar { height:5px; border-radius:3px; background:#F1F2F6; margin-top:8px; }
+        .bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
+        a { color:var(--accent); text-decoration:none; }
+        .ch-header { display:flex; gap:20px; align-items:center; padding:28px; background:var(--card); border-radius:20px; box-shadow:var(--shadow); margin-bottom:28px; }
+        .ch-avatar { width:80px; height:80px; border-radius:50%; border:3px solid var(--accent2); }
+        .ch-stats { display:flex; gap:28px; margin-top:10px; }
+        .ch-stat-val { font-size:1.3em; font-weight:700; color:var(--accent); }
+        .ch-stat-label { font-size:11px; color:var(--dim); font-weight:500; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="margin-bottom:18px;"><a href="/" class="btn">← 대시보드</a></div>
+
+    <div class="ch-header">
+        {% if ch.thumbnail %}<img class="ch-avatar" src="{{ ch.thumbnail }}">{% endif %}
+        <div>
+            <h1 style="font-size:1.5em;">{{ ch.name }}</h1>
+            <span class="tag tag-purple">{{ ch.category }}</span>
+            <div class="ch-stats">
+                <div><div class="ch-stat-val">{{ "{:,}".format(ch.subscribers) }}</div><div class="ch-stat-label">구독자</div></div>
+                <div><div class="ch-stat-val">{{ "{:,}".format(ch.total_videos) }}</div><div class="ch-stat-label">영상 수</div></div>
+                <div><div class="ch-stat-val">{{ "{:,}".format(ch.total_views) }}</div><div class="ch-stat-label">총 조회수</div></div>
+            </div>
+            {% if ch.note %}<p style="font-size:13px;color:var(--dim);margin-top:8px;font-style:italic;">{{ ch.note }}</p>{% endif %}
+        </div>
+    </div>
+
+    <h2 style="color:var(--accent);margin-bottom:18px;">최근 영상</h2>
+    <div class="grid">
+        {% for v in videos %}
+        <div class="card">
+            <a href="https://youtube.com/watch?v={{ v.video_id }}" target="_blank">
+                {% if v.thumbnail %}<img class="thumb" src="{{ v.thumbnail }}" loading="lazy">
+                {% else %}<img class="thumb" src="https://img.youtube.com/vi/{{ v.video_id }}/mqdefault.jpg" loading="lazy">{% endif %}
+            </a>
+            <div style="font-weight:600;margin-bottom:6px;">{{ v.title[:60] }}{% if v.title|length > 60 %}...{% endif %}</div>
+            <div class="meta">
+                <span><b>{{ "{:,}".format(v.views) }}</b> 조회수</span>
+                <span><b>{{ "{:,}".format(v.likes) }}</b> 좋아요</span>
+                <span>{{ v.published }}</span>
+            </div>
+            {% if v.views > 0 %}<div class="bar"><div class="bar-fill" style="width:{{ [v.likes * 100 // v.views, 100]|min }}%"></div></div>{% endif %}
+            <div style="margin-top:10px;display:flex;gap:6px;">
+                <a href="https://youtube.com/watch?v={{ v.video_id }}" target="_blank" class="btn btn-sm">보기</a>
+                {% if v.already_added %}<button class="btn btn-sm btn-done" disabled>추가됨</button>
+                {% else %}<button class="btn btn-sm btn-p" onclick="importVideo('{{ v.video_id }}',this)">+ 가져오기</button>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+function importVideo(vid,btn){
+    btn.textContent='...';btn.disabled=true;
+    fetch('/import_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:vid,category:'Uncategorized'})})
+    .then(r=>r.json()).then(()=>{btn.textContent='추가됨';btn.className='btn btn-sm btn-done';})
+    .catch(()=>{btn.textContent='+ 가져오기';btn.disabled=false;});
+}
+</script>
+</body>
+</html>
