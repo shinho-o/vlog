@@ -20,6 +20,18 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 app = Flask(__name__)
 
+BLOCK_KEYWORDS = [
+    "hindi", "desi", "bhai", "bhabhi", "yaar", "kya", "nahi", "bohot",
+    "aagya", "ghar pe", "pahli", "kirtan", "bhajan", "iftaar", "gaon",
+    "street food india", "indian street", "mumbai", "delhi vlog",
+    "sourav joshi", "carryminati", "aayu and pihu", "dimple malhan",
+    "lakhneet", "shoaib ibrahim", "bharti singh",
+]
+
+def _is_blocked(title, channel):
+    text = (title + " " + channel).lower()
+    return any(kw in text for kw in BLOCK_KEYWORDS)
+
 
 def sb():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -377,11 +389,15 @@ def collect_videos():
                 if vid in seen or vid not in stats:
                     continue
                 seen.add(vid)
+                title = item["snippet"]["title"]
+                channel = item["snippet"]["channelTitle"]
+                if _is_blocked(title, channel):
+                    continue
                 st = stats[vid]
                 rows.append({
                     "video_id": vid,
-                    "title": item["snippet"]["title"],
-                    "channel": item["snippet"]["channelTitle"],
+                    "title": title,
+                    "channel": channel,
                     "views": st["views"], "likes": st["likes"], "comments": st["comments"],
                     "query": q["query"], "published": item["snippet"]["publishedAt"][:10],
                     "date_collected": today, "category": q.get("category", "Uncategorized"),
@@ -402,6 +418,27 @@ def collect_videos():
 
     summary = "\n".join([f"{d['query']}: {d['count']}개" for d in details])
     return jsonify({"message": f"{total}개 영상 수집 완료!\n{summary}", "collected": total})
+
+
+@app.route("/predict", methods=["POST"])
+def predict_views():
+    data = request.json or {}
+    title = data.get("title", "").strip()
+    category = data.get("category", "Uncategorized")
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    from predictor import predict
+    return jsonify(predict(title, category))
+
+
+@app.route("/retrain", methods=["POST"])
+def retrain_model():
+    from predictor import train_model
+    try:
+        result = train_model()
+        return jsonify({"message": "Retrained!" if result else "Not enough data"})
+    except Exception as e:
+        return jsonify({"message": str(e)})
 
 
 @app.route("/analyze", methods=["POST"])

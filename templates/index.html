@@ -383,6 +383,28 @@
 
     <!-- 분석 -->
     <div id="analytics" class="tab-content">
+        <!-- 조회수 예측 -->
+        <div class="form-card" style="border-color:var(--accent);margin-bottom:20px;">
+            <h3>조회수 예측</h3>
+            <div class="form-row">
+                <div style="flex:2;"><input id="predTitle" placeholder="브이로그 제목을 입력하면 예상 조회수를 알려드려요" oninput="debouncedPredict()"></div>
+                <div style="flex:0 0 150px;">
+                    <select id="predCat" onchange="runPredict()">
+                        <option>daily vlog</option><option>travel</option><option>food</option>
+                        <option>lifestyle</option><option>tech</option><option>study</option><option>other</option>
+                    </select>
+                </div>
+            </div>
+            <div id="predResult" style="display:none;margin-top:14px;padding:14px;border-radius:12px;background:var(--accent-bg);border:1.5px solid var(--accent);">
+                <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
+                    <div><span style="font-size:12px;color:var(--dim);">예측 등급</span><div id="predTier" style="font-size:1.6em;font-weight:800;"></div></div>
+                    <div><span style="font-size:12px;color:var(--dim);">예상 조회수</span><div id="predRange" style="font-size:1.2em;font-weight:700;"></div></div>
+                    <div><span style="font-size:12px;color:var(--dim);">확신도</span><div id="predConf" style="font-size:1.2em;font-weight:700;"></div></div>
+                </div>
+                <div id="predBars" style="margin-top:12px;display:flex;gap:8px;"></div>
+            </div>
+        </div>
+
         <!-- AI 분석 -->
         <div class="form-card" style="border-color:var(--accent);">
             <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -477,6 +499,33 @@ function hideVideo(vid){ fetch('/toggle_video',{method:'POST',headers:{'Content-
 function removeChannel(n){ if(!confirm(n+' 삭제?'))return; fetch('/remove_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(()=>location.reload()); }
 function toggleQuery(id){ fetch('/toggle_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
 function deleteQuery(id){ if(!confirm('삭제?'))return; fetch('/delete_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
+let predTimer;
+function debouncedPredict(){clearTimeout(predTimer);predTimer=setTimeout(runPredict,400);}
+function runPredict(){
+    const title=document.getElementById('predTitle').value.trim();
+    const category=document.getElementById('predCat').value;
+    const res=document.getElementById('predResult');
+    if(!title){res.style.display='none';return;}
+    fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,category})})
+    .then(r=>r.json()).then(d=>{
+        if(d.error){res.style.display='none';return;}
+        res.style.display='block';
+        const colors={low:'#EF4444',medium:'#F59E0B',high:'#3B82F6',viral:'#7C3AED'};
+        document.getElementById('predTier').textContent=d.tier.toUpperCase();
+        document.getElementById('predTier').style.color=colors[d.tier];
+        document.getElementById('predRange').textContent=d.estimated_range;
+        document.getElementById('predConf').textContent=d.confidence+'%';
+        const bars=document.getElementById('predBars');bars.innerHTML='';
+        for(const[tier,pct] of Object.entries(d.probabilities)){
+            bars.innerHTML+=`<div style="flex:1;text-align:center;">
+                <div style="height:48px;background:#F1F5F9;border-radius:6px;position:relative;overflow:hidden;">
+                    <div style="position:absolute;bottom:0;width:100%;height:${pct}%;background:${colors[tier]};border-radius:6px;transition:height .3s;"></div>
+                </div>
+                <div style="font-size:10px;color:var(--dim);margin-top:4px;font-weight:600;">${tier}<br>${pct}%</div>
+            </div>`;
+        }
+    });
+}
 function runAnalysis(){
     const b=document.getElementById('analyzeBtn');
     b.textContent='분석 중...';b.disabled=true;
