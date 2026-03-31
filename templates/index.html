@@ -264,6 +264,7 @@
                 {% endif %}
                 <div style="margin-top:10px;display:flex;gap:6px;">
                     <a href="https://youtube.com/watch?v={{ v.video_id }}" target="_blank" class="btn btn-sm">보기</a>
+                    <button class="btn btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="analyzeVideo('{{ v.video_id }}')">분석</button>
                     <button class="btn btn-sm btn-d" onclick="hideVideo('{{ v.video_id }}')">숨기기</button>
                 </div>
             </div>
@@ -474,6 +475,21 @@
     </div>
 </div>
 
+<!-- 분석 모달 -->
+<div id="analysisModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;" onclick="if(event.target===this)closeModal()">
+    <div style="max-width:640px;margin:40px auto;background:var(--card);border-radius:20px;box-shadow:var(--shadow-lg);padding:28px;position:relative;">
+        <button onclick="closeModal()" style="position:absolute;top:16px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:var(--dim);">x</button>
+        <div id="modalThumb" style="margin-bottom:16px;"></div>
+        <h3 id="modalTitle" style="font-size:16px;font-weight:700;margin-bottom:12px;"></h3>
+        <div id="modalMeta" class="meta" style="margin-bottom:16px;"></div>
+        <div id="modalLoading" style="text-align:center;padding:32px;color:var(--dim);">
+            <div style="font-size:24px;margin-bottom:8px;">analyzing...</div>
+            <p>Claude가 영상을 분석 중입니다</p>
+        </div>
+        <div id="modalContent" style="display:none;"></div>
+    </div>
+</div>
+
 <script>
 document.querySelectorAll('.tab').forEach(t=>{
     t.addEventListener('click',()=>{
@@ -499,6 +515,39 @@ function hideVideo(vid){ fetch('/toggle_video',{method:'POST',headers:{'Content-
 function removeChannel(n){ if(!confirm(n+' 삭제?'))return; fetch('/remove_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(()=>location.reload()); }
 function toggleQuery(id){ fetch('/toggle_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
 function deleteQuery(id){ if(!confirm('삭제?'))return; fetch('/delete_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
+function analyzeVideo(vid){
+    const modal=document.getElementById('analysisModal');
+    const loading=document.getElementById('modalLoading');
+    const content=document.getElementById('modalContent');
+    modal.style.display='block'; loading.style.display='block'; content.style.display='none';
+    document.getElementById('modalThumb').innerHTML=`<img src="https://img.youtube.com/vi/${vid}/mqdefault.jpg" style="width:100%;border-radius:12px;">`;
+    document.getElementById('modalTitle').textContent='';
+    document.getElementById('modalMeta').innerHTML='';
+    fetch('/analyze_video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({video_id:vid})})
+    .then(r=>r.json()).then(d=>{
+        loading.style.display='none'; content.style.display='block';
+        document.getElementById('modalTitle').textContent=d.title||'';
+        document.getElementById('modalMeta').innerHTML=`<span>${d.channel||''}</span><span><b>${(d.views||0).toLocaleString()}</b> views</span><span><b>${(d.likes||0).toLocaleString()}</b> likes</span>`;
+        if(d.error){content.innerHTML=`<p style="color:var(--red);">${d.error}</p>`;return;}
+        const a=d.analysis;
+        let html='';
+        if(a.why_successful) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">왜 잘 됐는지</h4><p style="font-size:14px;line-height:1.7;">${a.why_successful}</p></div>`;
+        if(a.title_analysis) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">제목 분석</h4><p style="font-size:14px;line-height:1.7;">${a.title_analysis}</p></div>`;
+        if(a.audience) html+=`<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">타겟 오디언스</h4><p style="font-size:14px;">${a.audience}</p></div>`;
+        if(a.replication_tips){
+            html+='<div style="margin-bottom:16px;"><h4 style="color:var(--accent);margin-bottom:6px;">이런 영상 만들려면</h4><ul style="font-size:14px;padding-left:20px;line-height:1.8;">';
+            a.replication_tips.forEach(t=>html+=`<li>${t}</li>`);
+            html+='</ul></div>';
+        }
+        if(a.similar_ideas){
+            html+='<div><h4 style="color:var(--accent);margin-bottom:6px;">비슷한 영상 아이디어</h4>';
+            a.similar_ideas.forEach(i=>html+=`<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;"><b>${i.title}</b><br><span style="color:var(--dim);font-size:13px;">${i.concept}</span></div>`);
+            html+='</div>';
+        }
+        content.innerHTML=html;
+    }).catch(e=>{loading.style.display='none';content.style.display='block';content.innerHTML=`<p style="color:var(--red);">분석 실패: ${e}</p>`;});
+}
+function closeModal(){document.getElementById('analysisModal').style.display='none';}
 let predTimer;
 function debouncedPredict(){clearTimeout(predTimer);predTimer=setTimeout(runPredict,400);}
 function runPredict(){

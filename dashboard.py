@@ -441,6 +441,74 @@ def retrain_model():
         return jsonify({"message": str(e)})
 
 
+@app.route("/analyze_video", methods=["POST"])
+def analyze_single_video():
+    """개별 영상 Claude 분석"""
+    if not ANTHROPIC_API_KEY:
+        return jsonify({"error": "ANTHROPIC_API_KEY missing"}), 400
+
+    data = request.json or {}
+    video_id = data.get("video_id", "")
+    if not video_id:
+        return jsonify({"error": "video_id required"}), 400
+
+    s = sb()
+    rows = s.table("vlog_videos").select("*").eq("video_id", video_id).execute().data
+    if not rows:
+        return jsonify({"error": "Video not found"})
+    v = rows[0]
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    prompt = f"""Analyze this YouTube video's performance and give actionable insights.
+
+Video data:
+- Title: {v['title']}
+- Channel: {v['channel']}
+- Views: {v.get('views',0):,}
+- Likes: {v.get('likes',0):,}
+- Comments: {v.get('comments',0):,}
+- Published: {v.get('published','')}
+- Category: {v.get('category','')}
+- Duration: {v.get('duration','')}
+- Engagement rate: {round(v.get('likes',0)/max(v.get('views',1),1)*100, 2)}%
+
+Respond in Korean. Output ONLY valid JSON:
+
+{{
+  "why_successful": "이 영상이 조회수를 많이/적게 받은 이유 (2-3문장)",
+  "title_analysis": "제목의 강점과 약점 분석 (클릭 유도 요소, 키워드 등)",
+  "audience": "이 영상의 타겟 오디언스",
+  "replication_tips": ["비슷한 영상을 만들기 위한 팁 1", "팁 2", "팁 3"],
+  "similar_ideas": [
+    {{"title": "비슷하게 만들 수 있는 영상 제목 1", "concept": "간단한 설명"}},
+    {{"title": "비슷하게 만들 수 있는 영상 제목 2", "concept": "간단한 설명"}}
+  ]
+}}
+"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        analysis = json.loads(raw)
+    except json.JSONDecodeError:
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        analysis = json.loads(raw)
+
+    return jsonify({
+        "title": v["title"],
+        "channel": v["channel"],
+        "views": v.get("views", 0),
+        "likes": v.get("likes", 0),
+        "analysis": analysis,
+    })
+
+
 @app.route("/analyze", methods=["POST"])
 def analyze_trends():
     """Claude로 수집된 영상 트렌드 분석"""
