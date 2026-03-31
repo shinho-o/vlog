@@ -16,6 +16,7 @@ load_dotenv(SCRIPT_DIR / ".env")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 app = Flask(__name__)
 
@@ -261,7 +262,7 @@ def channel_detail(channel_id):
     existing_ids = {v["video_id"] for v in s.table("vlog_videos").select("video_id").execute().data}
     for v in videos:
         v["already_added"] = v["video_id"] in existing_ids
-    return render_template("channel.html", ch=ch)
+    return render_template("channel.html", ch=ch, videos=videos)
 
 
 @app.route("/import_video", methods=["POST"])
@@ -401,6 +402,96 @@ def collect_videos():
 
     summary = "\n".join([f"{d['query']}: {d['count']}개" for d in details])
     return jsonify({"message": f"{total}개 영상 수집 완료!\n{summary}", "collected": total})
+
+
+@app.route("/analyze", methods=["POST"])
+def analyze_trends():
+    """Claude로 수집된 영상 트렌드 분석"""
+    if not ANTHROPIC_API_KEY:
+        return jsonify({"error": "ANTHROPIC_API_KEY missing"}), 400
+
+    import anthropic
+    s = sb()
+    videos = s.table("vlog_videos").select("*").eq("hidden", False).order("views", desc=True).limit(30).execute().data
+
+    if not videos:
+        return jsonify({"error": "No videos to analyze"})
+
+    videos_text = "\n".join(
+        [f"- '{v['title']}' by {v['channel']} | {v['views']:,} views | {v['likes']:,} likes | category: {v.get('category','')} | {v['published']}"
+         for v in videos]
+    )
+
+    # 카테고리 통계
+    cat_counts = {}
+    for v in videos:
+        cat = v.get("category", "Uncategorized")
+        if cat not in cat_counts:
+            cat_counts[cat] = {"count": 0, "total_views": 0}
+        cat_counts[cat]["count"] += 1
+        cat_counts[cat]["total_views"] += v.get("views", 0)
+
+    cat_text = "\n".join([f"- {cat}: {d['count']} videos, {d['total_views']:,} total views" for cat, d in cat_counts.items()])
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    prompt = f"""You are a YouTube vlog trend analyst.
+
+Here are the top 30 trending vlog videos collected recently:
+{videos_text}
+
+Category breakdown:
+{cat_text}
+
+Analyze these trends and provide:
+
+1. **Top 3 trending topics** — what themes are getting the most views right now
+2. **Content format insights** — what formats (daily vlog, travel, food, study, etc.) are performing best
+3. **Title patterns** — what title styles get the most engagement
+4. **3 vlog ideas** — specific vlog concepts a creator should try this week
+5. **Channels to watch** — which channels from this data are worth studying and why
+
+Output ONLY valid JSON:
+
+{{
+  "trending_topics": [
+    {{"topic": "topic name", "why": "explanation", "example_video": "title"}}
+  ],
+  "format_insights": [
+    {{"format": "format name", "performance": "high/medium/low", "tip": "specific advice"}}
+  ],
+  "title_patterns": [
+    {{"pattern": "pattern description", "example": "example title", "effectiveness": "high/medium"}}
+  ],
+  "vlog_ideas": [
+    {{"title": "suggested vlog title", "concept": "brief description", "estimated_appeal": "high/medium/low"}}
+  ],
+  "channels_to_watch": [
+    {{"channel": "name", "why": "reason"}}
+  ],
+  "summary": "one-line trend summary"
+}}
+"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        raw = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw)
+
+    # 분석 결과를 runs에 저장
+    s.table("vlog_runs").insert({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "videos_collected": 0,
+        "summary": f"AI Analysis: {result.get('summary', '')}",
+    }).execute()
+
+    return jsonify(result)
 
 
 if __name__ == "__main__":

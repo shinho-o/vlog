@@ -383,6 +383,31 @@
 
     <!-- 분석 -->
     <div id="analytics" class="tab-content">
+        <!-- AI 분석 -->
+        <div class="form-card" style="border-color:var(--accent);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3>AI 트렌드 분석</h3>
+                <button class="btn btn-p" id="analyzeBtn" onclick="runAnalysis()">Claude로 분석</button>
+            </div>
+            <p style="font-size:13px;color:var(--dim);margin-top:6px;">수집된 영상 데이터를 Claude가 분석해서 트렌드, 아이디어, 채널 추천을 생성합니다.</p>
+        </div>
+
+        <div id="analysisResult" style="display:none;margin-bottom:24px;">
+            <div id="analysisSummary" class="card" style="border-left:4px solid var(--accent);margin-bottom:16px;"></div>
+
+            <h4 style="font-weight:700;margin-bottom:12px;">트렌드 토픽</h4>
+            <div id="analysisTrends" class="grid" style="margin-bottom:20px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));"></div>
+
+            <h4 style="font-weight:700;margin-bottom:12px;">브이로그 아이디어</h4>
+            <div id="analysisIdeas" style="margin-bottom:20px;"></div>
+
+            <h4 style="font-weight:700;margin-bottom:12px;">주목할 채널</h4>
+            <div id="analysisChannels" style="margin-bottom:20px;"></div>
+
+            <h4 style="font-weight:700;margin-bottom:12px;">제목 패턴</h4>
+            <div id="analysisPatterns" style="margin-bottom:20px;"></div>
+        </div>
+
         <h3 style="font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
             <span style="width:4px;height:18px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--pink));display:inline-block;"></span>
             카테고리별 통계
@@ -452,6 +477,44 @@ function hideVideo(vid){ fetch('/toggle_video',{method:'POST',headers:{'Content-
 function removeChannel(n){ if(!confirm(n+' 삭제?'))return; fetch('/remove_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).then(()=>location.reload()); }
 function toggleQuery(id){ fetch('/toggle_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
 function deleteQuery(id){ if(!confirm('삭제?'))return; fetch('/delete_query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).then(()=>location.reload()); }
+function runAnalysis(){
+    const b=document.getElementById('analyzeBtn');
+    b.textContent='분석 중...';b.disabled=true;
+    fetch('/analyze',{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.error){alert(d.error);b.textContent='Claude로 분석';b.disabled=false;return;}
+        const res=document.getElementById('analysisResult');
+        res.style.display='block';
+
+        document.getElementById('analysisSummary').innerHTML=`<div style="font-weight:700;margin-bottom:4px;">트렌드 요약</div><p style="color:var(--dim);">${d.summary}</p>`;
+
+        let trendsHtml='';
+        (d.trending_topics||[]).forEach(t=>{
+            trendsHtml+=`<div class="card"><div class="card-title">${t.topic}</div><p style="font-size:13px;color:var(--dim);margin:6px 0;">${t.why}</p><span class="tag tag-purple">${t.example_video||''}</span></div>`;
+        });
+        document.getElementById('analysisTrends').innerHTML=trendsHtml;
+
+        let ideasHtml='';
+        (d.vlog_ideas||[]).forEach(i=>{
+            const color=i.estimated_appeal==='high'?'var(--green)':i.estimated_appeal==='medium'?'var(--yellow)':'var(--dim)';
+            ideasHtml+=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><div class="card-title">${i.title}</div><span class="tag" style="background:${color}20;color:${color};">${i.estimated_appeal}</span></div><p style="font-size:13px;color:var(--dim);margin-top:6px;">${i.concept}</p></div>`;
+        });
+        document.getElementById('analysisIdeas').innerHTML=ideasHtml;
+
+        let chHtml='';
+        (d.channels_to_watch||[]).forEach(c=>{
+            chHtml+=`<div class="card"><div class="card-title">${c.channel}</div><p style="font-size:13px;color:var(--dim);margin-top:4px;">${c.why}</p></div>`;
+        });
+        document.getElementById('analysisChannels').innerHTML=chHtml;
+
+        let patHtml='';
+        (d.title_patterns||[]).forEach(p=>{
+            patHtml+=`<div class="card"><div class="card-title">${p.pattern}</div><div class="meta"><span>예시: <b>${p.example}</b></span><span class="tag tag-blue">${p.effectiveness}</span></div></div>`;
+        });
+        document.getElementById('analysisPatterns').innerHTML=patHtml;
+
+        b.textContent='Claude로 분석';b.disabled=false;
+    }).catch(()=>{b.textContent='Claude로 분석';b.disabled=false;});
+}
 function collectVideos(){
     const b=document.getElementById('collectBtn');const b2=document.getElementById('collectBtn2');
     b.textContent='수집 중...';b.disabled=true;if(b2){b2.textContent='수집 중...';b2.disabled=true;}
