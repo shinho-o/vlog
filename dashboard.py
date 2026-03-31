@@ -19,6 +19,26 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# Claude: $3/M input, $15/M output (Sonnet)
+# Gemini 2.5 Flash: free tier
+PRICING = {
+    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
+    "gemini-2.5-flash": {"input": 0.0, "output": 0.0},
+}
+
+def log_usage(service, model, endpoint, tokens_in=0, tokens_out=0, project="vlog"):
+    cost = 0
+    if model in PRICING:
+        cost = (tokens_in * PRICING[model]["input"] + tokens_out * PRICING[model]["output"]) / 1_000_000
+    try:
+        sb().table("api_usage").insert({
+            "service": service, "model": model, "endpoint": endpoint,
+            "tokens_in": tokens_in, "tokens_out": tokens_out,
+            "cost_usd": round(cost, 6), "project": project,
+        }).execute()
+    except Exception:
+        pass
+
 app = Flask(__name__)
 
 BLOCK_KEYWORDS = [
@@ -165,6 +185,7 @@ def index():
     saved_channels = s.table("vlog_channels").select("*").execute().data
     search_queries = s.table("vlog_queries").select("*").order("id").execute().data
     runs = s.table("vlog_runs").select("*").order("id", desc=True).limit(10).execute().data
+    usage = s.table("api_usage").select("*").order("id", desc=True).limit(50).execute().data
 
     videos = [v for v in all_videos if not v.get("hidden")]
     hidden_count = sum(1 for v in all_videos if v.get("hidden"))
@@ -207,6 +228,9 @@ def index():
         channel_stats=channel_stats,
         total_views=total_views,
         hidden_count=hidden_count,
+        usage=usage,
+        total_cost=round(sum(u.get("cost_usd", 0) or 0 for u in usage), 4),
+        total_calls=len(usage),
     )
 
 
@@ -512,6 +536,9 @@ Respond in Korean. Output ONLY valid JSON:
             client = genai.Client(api_key=GEMINI_API_KEY)
             response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
             raw = response.text.strip()
+            t_in = getattr(getattr(response, 'usage_metadata', None), 'prompt_token_count', 0) or 0
+            t_out = getattr(getattr(response, 'usage_metadata', None), 'candidates_token_count', 0) or 0
+            log_usage("gemini", "gemini-2.5-flash", "analyze_video", t_in, t_out)
         except Exception as e:
             print(f"[WARN] Gemini failed: {e}")
 
@@ -524,6 +551,8 @@ Respond in Korean. Output ONLY valid JSON:
             messages=[{"role": "user", "content": prompt}],
         )
         raw = response.content[0].text.strip()
+        log_usage("claude", "claude-sonnet-4-20250514", "analyze_video",
+                  response.usage.input_tokens, response.usage.output_tokens)
 
     if not raw:
         return jsonify({"error": "No AI API key available (GEMINI or ANTHROPIC)"})
@@ -673,6 +702,8 @@ Output ONLY valid JSON:
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.content[0].text.strip()
+    log_usage("claude", "claude-sonnet-4-20250514", "analyze_trends",
+              response.usage.input_tokens, response.usage.output_tokens)
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:

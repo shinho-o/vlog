@@ -485,6 +485,44 @@
             <p>데이터가 없습니다. 영상을 수집하면 분석이 시작됩니다.</p>
         </div>
         {% endif %}
+
+        <!-- API 사용량 -->
+        <h3 style="font-weight:700;margin:28px 0 16px;display:flex;align-items:center;gap:8px;">
+            <span style="width:4px;height:18px;border-radius:2px;background:linear-gradient(180deg,var(--pink),var(--accent));display:inline-block;"></span>
+            API 사용량
+        </h3>
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:16px;">
+            <div class="stat-card"><div class="stat-value">{{ total_calls }}</div><div class="stat-label">AI 호출</div></div>
+            <div class="stat-card"><div class="stat-value">${{ "%.4f"|format(total_cost) }}</div><div class="stat-label">총 비용</div></div>
+        </div>
+        {% if usage %}
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                        <th style="padding:8px;color:var(--dim);font-weight:600;">시간</th>
+                        <th style="padding:8px;color:var(--dim);font-weight:600;">서비스</th>
+                        <th style="padding:8px;color:var(--dim);font-weight:600;">모델</th>
+                        <th style="padding:8px;color:var(--dim);font-weight:600;">용도</th>
+                        <th style="padding:8px;color:var(--dim);font-weight:600;">토큰 (in/out)</th>
+                        <th style="padding:8px;color:var(--dim);font-weight:600;">비용</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usage %}
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:8px;">{{ u.created_at[:16] if u.created_at else '' }}</td>
+                        <td style="padding:8px;"><span class="tag {% if u.service == 'gemini' %}tag-green{% else %}tag-purple{% endif %}">{{ u.service }}</span></td>
+                        <td style="padding:8px;color:var(--dim);">{{ u.model }}</td>
+                        <td style="padding:8px;">{{ u.endpoint }}</td>
+                        <td style="padding:8px;">{{ "{:,}".format(u.tokens_in or 0) }} / {{ "{:,}".format(u.tokens_out or 0) }}</td>
+                        <td style="padding:8px;{% if (u.cost_usd or 0) > 0 %}color:var(--red);{% else %}color:var(--green);{% endif %}">${{ "%.4f"|format(u.cost_usd or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
     </div>
 </div>
 
