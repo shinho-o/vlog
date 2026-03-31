@@ -236,7 +236,10 @@ def add_channel():
     if not channel_input:
         return redirect("/")
     s = sb()
-    ch_info = resolve_channel_id(channel_input)
+    try:
+        ch_info = resolve_channel_id(channel_input)
+    except Exception:
+        ch_info = None
     if ch_info:
         s.table("vlog_channels").upsert({
             "channel_id": ch_info["channel_id"], "name": ch_info["name"],
