@@ -15,7 +15,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 MODEL_PATH = Path(__file__).parent / "data" / "vlog_model.pkl"
 
 
-def extract_features(video: dict) -> dict:
+def extract_features(video: dict, subscriber_count: int = 0) -> dict:
     title = video.get("title", "")
     title_len = len(title)
     word_count = len(title.split())
@@ -40,6 +40,9 @@ def extract_features(video: dict) -> dict:
     cats = ["daily vlog", "travel", "food", "lifestyle", "tech", "study", "other"]
     cat_features = {f"cat_{c.replace(' ', '_')}": 1 if category == c else 0 for c in cats}
 
+    import math
+    log_subscribers = round(math.log10(subscriber_count + 1), 3)
+
     return {
         "title_len": title_len, "word_count": word_count,
         "has_emoji": has_emoji, "has_number": has_number,
@@ -50,6 +53,7 @@ def extract_features(video: dict) -> dict:
         "has_food": has_food, "has_travel": has_travel,
         "has_routine": has_routine, "has_aesthetic": has_aesthetic,
         "has_transformation": has_transformation,
+        "log_subscribers": log_subscribers,
         **cat_features,
     }
 
@@ -116,13 +120,13 @@ def train_model():
     return model, feature_names
 
 
-def predict(title, category="Uncategorized"):
+def predict(title, category="Uncategorized", subscriber_count=0):
     if not MODEL_PATH.exists():
         return {"error": "Model not trained. Run train first."}
     with open(MODEL_PATH, "rb") as f:
         data = pickle.load(f)
     model, feature_names = data["model"], data["feature_names"]
-    feats = extract_features({"title": title, "category": category})
+    feats = extract_features({"title": title, "category": category}, subscriber_count=subscriber_count)
     X = np.array([[feats[f] for f in feature_names]])
     pred = model.predict(X)[0]
     proba = model.predict_proba(X)[0]

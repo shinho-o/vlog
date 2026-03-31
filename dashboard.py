@@ -446,10 +446,11 @@ def predict_views():
     data = request.json or {}
     title = data.get("title", "").strip()
     category = data.get("category", "Uncategorized")
+    subscriber_count = data.get("subscriber_count", 0)
     if not title:
         return jsonify({"error": "title required"}), 400
     from predictor import predict
-    return jsonify(predict(title, category))
+    return jsonify(predict(title, category, subscriber_count=subscriber_count))
 
 
 @app.route("/retrain", methods=["POST"])

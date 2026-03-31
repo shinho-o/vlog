@@ -407,6 +407,7 @@
                         <option>lifestyle</option><option>tech</option><option>study</option><option>other</option>
                     </select>
                 </div>
+                <div style="flex:0 0 140px;"><input id="predSubs" type="number" placeholder="구독자 수" value="0" oninput="debouncedPredict()" style="width:100%;"></div>
             </div>
             <div id="predResult" style="display:none;margin-top:14px;padding:14px;border-radius:12px;background:var(--accent-bg);border:1.5px solid var(--accent);">
                 <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;">
@@ -607,9 +608,10 @@ function debouncedPredict(){clearTimeout(predTimer);predTimer=setTimeout(runPred
 function runPredict(){
     const title=document.getElementById('predTitle').value.trim();
     const category=document.getElementById('predCat').value;
+    const subs=parseInt(document.getElementById('predSubs').value)||0;
     const res=document.getElementById('predResult');
     if(!title){res.style.display='none';return;}
-    fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,category})})
+    fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,category,subscriber_count:subs})})
     .then(r=>r.json()).then(d=>{
         if(d.error){res.style.display='none';return;}
         res.style.display='block';
