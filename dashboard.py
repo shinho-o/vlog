@@ -1,12 +1,12 @@
 """
-Vlog Trend Dashboard — YouTube 브이로그 트렌드 분석 + 모니터링
+Vlog Trend Dashboard — YouTube 브이로그 트렌드 분석 + 편집 지침서
 """
 import os
 import json
 import re
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect
+from flask import Flask, render_template, request, jsonify, redirect, abort
 from dotenv import load_dotenv
 from supabase import create_client
 
@@ -176,7 +176,57 @@ def fetch_channel_videos(channel_id, max_results=15):
     return videos
 
 
+# ── Insight file helpers ──
+
+INSIGHTS_DIR = SCRIPT_DIR / "data" / "insights"
+
+
+def _parse_insight(path: Path) -> dict:
+    """YAML frontmatter + markdown body 를 분리."""
+    txt = path.read_text(encoding="utf-8")
+    m = re.match(r"^---\n(.*?)\n---\n(.*)$", txt, re.DOTALL)
+    fm = {}
+    body = txt
+    if m:
+        for line in m.group(1).splitlines():
+            if ":" in line:
+                k, v = line.split(":", 1)
+                fm[k.strip()] = v.strip()
+        body = m.group(2)
+    return {
+        "date": path.stem,
+        "frontmatter": fm,
+        "body": body,
+        "mtime": datetime.fromtimestamp(path.stat().st_mtime),
+    }
+
+
+def _list_insights() -> list[dict]:
+    if not INSIGHTS_DIR.exists():
+        return []
+    items = [_parse_insight(p) for p in INSIGHTS_DIR.glob("*.md")]
+    items.sort(key=lambda i: i["date"], reverse=True)
+    return items
+
+
 # ── Routes ──
+
+@app.route("/insights")
+def insights_index():
+    items = _list_insights()
+    return render_template("insights.html", items=items)
+
+
+@app.route("/insights/<date>")
+def insight_detail(date):
+    path = INSIGHTS_DIR / f"{date}.md"
+    if not path.exists():
+        abort(404)
+    import markdown as _md
+    doc = _parse_insight(path)
+    html_body = _md.markdown(doc["body"], extensions=["tables", "fenced_code"])
+    return render_template("insight_detail.html", doc=doc, html_body=html_body)
+
 
 @app.route("/")
 def index():

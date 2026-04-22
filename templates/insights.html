@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>편집 지침서 · Vlog Trends</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+     background:#0e1016;color:#e5e7eb;min-height:100vh}
+.wrap{max-width:1000px;margin:0 auto;padding:28px 20px}
+a.back{color:#9ca3af;font-size:.85em;text-decoration:none}
+a.back:hover{color:#c4b5fd}
+h1{font-size:1.6em;color:#c4b5fd;letter-spacing:-.02em;margin-top:12px}
+p.sub{color:#6b7280;font-size:.9em;margin-top:6px}
+
+.empty{
+    background:#1a1d26;border:1px dashed #374151;border-radius:12px;
+    padding:40px 20px;text-align:center;margin-top:30px;color:#6b7280;
+}
+.empty code{
+    display:inline-block;margin-top:10px;background:#0e1016;
+    padding:6px 12px;border-radius:6px;color:#c4b5fd;font-size:.9em;
+}
+
+.card{
+    display:block;text-decoration:none;color:inherit;
+    background:#1a1d26;border:1px solid #2a2f3c;border-radius:12px;
+    padding:18px 20px;margin-top:14px;transition:border-color .2s,transform .1s;
+}
+.card:hover{border-color:#a78bfa;transform:translateY(-2px)}
+.card-date{
+    font-size:1.1em;color:#e5e7eb;font-weight:600;letter-spacing:-.01em;
+}
+.card-meta{
+    display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;
+    font-size:.82em;color:#9ca3af;
+}
+.chip{
+    background:#0e1016;padding:3px 10px;border-radius:12px;
+    border:1px solid #2a2f3c;
+}
+.chip strong{color:#c4b5fd}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <a class="back" href="/">← 트렌드 대시보드</a>
+    <h1>편집 지침서</h1>
+    <p class="sub">최근 반응 좋은 한국 브이로그의 편집 스타일을 분석한 일일 지침서</p>
+
+    {% if items %}
+        {% for it in items %}
+        <a class="card" href="/insights/{{ it.date }}">
+            <div class="card-date">{{ it.date }}</div>
+            <div class="card-meta">
+                {% if it.frontmatter.video_count %}
+                <span class="chip">분석 영상 <strong>{{ it.frontmatter.video_count }}</strong>개</span>
+                {% endif %}
+                {% if it.frontmatter.cut_interval_mean %}
+                <span class="chip">평균 컷 <strong>{{ it.frontmatter.cut_interval_mean }}</strong>s</span>
+                {% endif %}
+                {% if it.frontmatter.chars_per_sec_mean %}
+                <span class="chip">자막 <strong>{{ it.frontmatter.chars_per_sec_mean }}</strong> chars/s</span>
+                {% endif %}
+                {% if it.frontmatter.bpm_mean %}
+                <span class="chip">BGM <strong>{{ it.frontmatter.bpm_mean }}</strong> BPM</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    {% else %}
+    <div class="empty">
+        아직 지침서가 생성되지 않았습니다.<br>
+        로컬에서 분석 파이프라인을 실행한 뒤 <code>data/insights/</code> 폴더를 커밋하세요.<br>
+        <code>python download.py --top 10 &amp;&amp; python analyze.py &amp;&amp; python insights.py</code>
+    </div>
+    {% endif %}
+</div>
+</body>
+</html>

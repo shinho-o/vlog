@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ doc.date }} · 편집 지침서</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+     background:#0e1016;color:#e5e7eb;min-height:100vh;line-height:1.6}
+.wrap{max-width:880px;margin:0 auto;padding:28px 20px}
+a.back{color:#9ca3af;font-size:.85em;text-decoration:none}
+a.back:hover{color:#c4b5fd}
+.date{font-size:1.6em;color:#c4b5fd;letter-spacing:-.02em;margin-top:12px}
+
+.params{
+    display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px;
+}
+.chip{
+    background:#1a1d26;border:1px solid #2a2f3c;
+    padding:5px 12px;border-radius:12px;font-size:.8em;color:#9ca3af;
+}
+.chip strong{color:#c4b5fd}
+
+.content{
+    background:#1a1d26;border:1px solid #2a2f3c;border-radius:12px;
+    padding:24px 28px;font-size:.95em;
+}
+.content h1,.content h2,.content h3{
+    color:#c4b5fd;letter-spacing:-.01em;margin-top:20px;margin-bottom:10px;
+}
+.content h1{font-size:1.4em}
+.content h2{font-size:1.1em}
+.content h3{font-size:1em;color:#a78bfa}
+.content ul,.content ol{margin:10px 0 10px 24px}
+.content li{margin:4px 0}
+.content p{margin:10px 0;color:#d1d5db}
+.content code{
+    background:#0e1016;padding:2px 6px;border-radius:4px;
+    font-size:.9em;color:#fcd34d;
+}
+.content pre{
+    background:#0e1016;padding:12px;border-radius:8px;overflow-x:auto;
+    margin:12px 0;border:1px solid #2a2f3c;
+}
+.content pre code{background:none;color:#e5e7eb}
+.content table{
+    border-collapse:collapse;width:100%;margin:12px 0;font-size:.88em;
+}
+.content th,.content td{
+    border:1px solid #2a2f3c;padding:8px 12px;text-align:left;
+}
+.content th{background:#0e1016;color:#c4b5fd}
+.content blockquote{
+    border-left:3px solid #a78bfa;padding-left:14px;margin:12px 0;color:#9ca3af;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <a class="back" href="/insights">← 지침서 전체</a>
+    <div class="date">{{ doc.date }}</div>
+
+    <div class="params">
+        {% if doc.frontmatter.video_count %}
+        <span class="chip">분석 영상 <strong>{{ doc.frontmatter.video_count }}</strong></span>
+        {% endif %}
+        {% if doc.frontmatter.cut_interval_mean %}
+        <span class="chip">평균 컷 <strong>{{ doc.frontmatter.cut_interval_mean }}</strong>s</span>
+        {% endif %}
+        {% if doc.frontmatter.chars_per_sec_mean %}
+        <span class="chip">자막 <strong>{{ doc.frontmatter.chars_per_sec_mean }}</strong> chars/s</span>
+        {% endif %}
+        {% if doc.frontmatter.bpm_mean %}
+        <span class="chip">BGM <strong>{{ doc.frontmatter.bpm_mean }}</strong> BPM</span>
+        {% endif %}
+    </div>
+
+    <div class="content">{{ html_body|safe }}</div>
+</div>
+</body>
+</html>
