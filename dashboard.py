@@ -752,6 +752,7 @@ Output ONLY valid JSON:
     return jsonify(result)
 
 
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5002))
     print(f"Vlog Dashboard: http://localhost:{port}")
