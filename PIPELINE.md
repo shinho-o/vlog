@@ -19,7 +19,8 @@ editor.py    → (예정) 내 원본 + insights md → 편집된 쇼츠
 ## 최초 셋업
 
 ```bash
-pip install -r requirements.txt
+# 로컬 파이프라인(무거운 ML 패키지 포함) — requirements.txt 는 Render 배포용(경량)
+pip install -r requirements-local.txt
 
 # ffmpeg 필수 (PATH 에 있어야 함)
 #   Windows: scoop install ffmpeg  또는  choco install ffmpeg
