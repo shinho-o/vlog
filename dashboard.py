@@ -4,9 +4,12 @@ Vlog Trend Dashboard — YouTube 브이로그 트렌드 분석 + 편집 지침�
 import os
 import json
 import re
+import threading
+import uuid
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, redirect, abort
+from flask import Flask, render_template, request, jsonify, redirect, abort, send_from_directory
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from supabase import create_client
 
@@ -215,6 +218,76 @@ def _list_insights() -> list[dict]:
 def insights_index():
     items = _list_insights()
     return render_template("insights.html", items=items)
+
+
+# ── Editor (upload → process → download) ──
+
+UPLOAD_DIR = SCRIPT_DIR / "data" / "uploads"
+EDITED_DIR = SCRIPT_DIR / "data" / "edited"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+EDITED_DIR.mkdir(parents=True, exist_ok=True)
+
+# job_id → {"status": "processing|done|error", "result": Path|None, "error": str|None}
+_JOBS: dict[str, dict] = {}
+
+
+def _run_edit_job(job_id: str, src: Path, trim_sec: float | None,
+                  captions: bool, font_size: int, margin: int):
+    try:
+        from editor import edit as do_edit
+        out = EDITED_DIR / f"{job_id}_{src.stem}_edited.mp4"
+        do_edit(src, out, trim_sec, captions, font_size, margin)
+        _JOBS[job_id] = {"status": "done", "result": out, "error": None}
+    except Exception as e:
+        _JOBS[job_id] = {"status": "error", "result": None, "error": str(e)}
+
+
+@app.route("/editor", methods=["GET", "POST"])
+def editor_page():
+    if request.method == "POST":
+        f = request.files.get("video")
+        if not f or not f.filename:
+            return jsonify({"error": "no video uploaded"}), 400
+
+        fn = secure_filename(f.filename) or "video.mp4"
+        job_id = uuid.uuid4().hex[:8]
+        src = UPLOAD_DIR / f"{job_id}_{fn}"
+        f.save(src)
+
+        trim_raw = request.form.get("trim", "").strip()
+        trim_sec = float(trim_raw) if trim_raw else None
+        captions = request.form.get("captions") == "on"
+        font_size = int(request.form.get("font_size", 48))
+        margin = int(request.form.get("margin", 100))
+
+        _JOBS[job_id] = {"status": "processing", "result": None, "error": None}
+        threading.Thread(target=_run_edit_job, args=(
+            job_id, src, trim_sec, captions, font_size, margin,
+        ), daemon=True).start()
+
+        return jsonify({"job_id": job_id})
+
+    return render_template("editor.html")
+
+
+@app.route("/editor/status/<job_id>")
+def editor_status(job_id):
+    job = _JOBS.get(job_id)
+    if not job:
+        return jsonify({"status": "unknown"}), 404
+    return jsonify({
+        "status": job["status"],
+        "download_url": f"/editor/download/{job_id}" if job["status"] == "done" else None,
+        "error": job["error"],
+    })
+
+
+@app.route("/editor/download/<job_id>")
+def editor_download(job_id):
+    job = _JOBS.get(job_id)
+    if not job or job["status"] != "done" or not job["result"]:
+        abort(404)
+    return send_from_directory(EDITED_DIR, job["result"].name, as_attachment=True)
 
 
 @app.route("/insights/<date>")

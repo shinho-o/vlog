@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>영상 편집 · Vlog</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+     background:#faf9f6;color:#2b2b28;min-height:100vh;line-height:1.55}
+.wrap{max-width:720px;margin:0 auto;padding:28px 22px}
+a.back{color:#6b6859;font-size:.88em;text-decoration:none}
+a.back:hover{color:#2b2b28}
+h1{font-size:1.55em;letter-spacing:-.02em;margin-top:14px;font-weight:700}
+p.sub{color:#6b6859;font-size:.92em;margin-top:6px}
+form{
+    background:#fff;border:1px solid #e5e1d6;border-radius:10px;
+    padding:22px;margin-top:22px;
+}
+label{display:block;font-size:.85em;color:#4a4840;margin:14px 0 4px;font-weight:500}
+input[type=file],input[type=number]{
+    width:100%;padding:9px 12px;border:1px solid #d9d4c4;border-radius:7px;
+    background:#fafaf6;font-size:.92em;font-family:inherit;
+}
+.check{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.9em}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button.submit{
+    margin-top:20px;padding:11px 20px;border:none;border-radius:7px;
+    background:#2b2b28;color:#faf9f6;font-size:.95em;font-weight:600;cursor:pointer;
+    width:100%;
+}
+button.submit:hover{background:#454540}
+button.submit:disabled{background:#a8a497;cursor:not-allowed}
+.hint{color:#8a8776;font-size:.78em;margin-top:3px}
+#status{
+    margin-top:22px;padding:16px 18px;border-radius:10px;
+    background:#fff;border:1px solid #e5e1d6;font-size:.92em;display:none;
+}
+#status.err{background:#fdf0ee;border-color:#d99c92;color:#8a3a2c}
+#status a{color:#2b2b28;font-weight:600}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #d9d4c4;
+      border-top-color:#2b2b28;border-radius:50%;
+      animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+    <a class="back" href="/">← 트렌드 대시보드</a>
+    <h1>영상 편집</h1>
+    <p class="sub">원본 영상을 업로드하면 자동 자막 + 트리밍을 적용해 돌려줍니다. 로컬에서 실행 중인 서버에서만 동작 (Whisper·ffmpeg 필요).</p>
+
+    <form id="editForm">
+        <label for="video">영상 파일 (mp4/mov/webm)</label>
+        <input type="file" id="video" name="video" accept="video/*" required>
+
+        <div class="row">
+            <div>
+                <label for="trim">트림 길이 (초, 비우면 원본)</label>
+                <input type="number" id="trim" name="trim" placeholder="예: 60">
+            </div>
+            <div>
+                <label for="font_size">자막 크기</label>
+                <input type="number" id="font_size" name="font_size" value="48">
+            </div>
+        </div>
+
+        <label for="margin">자막 하단 여백 (px)</label>
+        <input type="number" id="margin" name="margin" value="100">
+
+        <label class="check">
+            <input type="checkbox" name="captions" checked> 자동 자막 생성 + 번인
+        </label>
+        <div class="hint">첫 실행 시 Whisper 모델(~460MB) 다운로드로 시간이 더 걸립니다.</div>
+
+        <button class="submit" type="submit">편집 시작</button>
+    </form>
+
+    <div id="status"></div>
+</div>
+
+<script>
+const form = document.getElementById('editForm');
+const statusEl = document.getElementById('status');
+let pollTimer = null;
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button.submit');
+    btn.disabled = true;
+    btn.textContent = '업로드 중…';
+
+    statusEl.className = '';
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '<span class="spin"></span>파일 업로드 중';
+
+    try {
+        const fd = new FormData(form);
+        const r = await fetch('/editor', {method:'POST', body:fd});
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'upload failed');
+
+        poll(j.job_id, btn);
+    } catch (err) {
+        statusEl.className = 'err';
+        statusEl.textContent = '업로드 실패: ' + err.message;
+        btn.disabled = false;
+        btn.textContent = '편집 시작';
+    }
+});
+
+async function poll(jobId, btn) {
+    statusEl.innerHTML = '<span class="spin"></span>편집 중… (영상 길이에 따라 1~5분)';
+    pollTimer = setInterval(async () => {
+        const r = await fetch('/editor/status/' + jobId);
+        const j = await r.json();
+        if (j.status === 'done') {
+            clearInterval(pollTimer);
+            statusEl.innerHTML = '완료 → <a href="' + j.download_url + '">결과 영상 다운로드</a>';
+            btn.disabled = false;
+            btn.textContent = '편집 시작';
+        } else if (j.status === 'error') {
+            clearInterval(pollTimer);
+            statusEl.className = 'err';
+            statusEl.textContent = '편집 실패: ' + (j.error || 'unknown');
+            btn.disabled = false;
+            btn.textContent = '편집 시작';
+        }
+    }, 3000);
+}
+</script>
+</body>
+</html>
