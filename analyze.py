@@ -12,19 +12,23 @@
     }
 
 사용:
-    python analyze.py                  # data/videos/ 전체 신규 분석
+    python analyze.py                  # Supabase Storage 전체 신규 분석
     python analyze.py --video VIDEO_ID # 단일 영상
+    python analyze.py --local          # 로컬 data/videos/ 만 대상
 """
 import argparse
 import json
 import subprocess
+import tempfile
 from collections import Counter
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
 VIDEOS_DIR = SCRIPT_DIR / "data" / "videos"
 ANALYSIS_DIR = SCRIPT_DIR / "data" / "analysis"
+CACHE_DIR = SCRIPT_DIR / "data" / "_cache"
 ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def probe_duration(video_path: Path) -> float:
@@ -144,31 +148,73 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", help="특정 video_id만 분석")
     ap.add_argument("--force", action="store_true", help="기존 분석 덮어쓰기")
+    ap.add_argument("--local", action="store_true",
+                    help="로컬 data/videos/ 만 대상 (기본: Supabase Storage)")
+    ap.add_argument("--keep-cache", action="store_true",
+                    help="Supabase 다운 후 캐시 삭제하지 않음")
     args = ap.parse_args()
 
+    # 1) 타겟 video_id 목록
     if args.video:
-        targets = [VIDEOS_DIR / f"{args.video}.mp4"]
+        ids = [args.video]
+    elif args.local:
+        ids = [p.stem for p in sorted(VIDEOS_DIR.glob("*.mp4"))]
     else:
-        targets = sorted(VIDEOS_DIR.glob("*.mp4"))
+        try:
+            import storage
+            ids = storage.list_all()
+            print(f"[cloud] {len(ids)} videos in Supabase Storage")
+        except Exception as e:
+            print(f"[error] Supabase 목록 조회 실패: {e}")
+            return
 
-    if not targets:
-        print("[skip] no videos found. Run download.py first.")
+    if not ids:
+        print("[skip] no videos.  download.py 먼저 실행하거나 --local 옵션.")
         return
 
-    for vp in targets:
-        if not vp.exists():
-            print(f"[miss] {vp.name}")
-            continue
-        out = ANALYSIS_DIR / f"{vp.stem}.json"
+    # 2) 각 영상 처리 (필요 시 Supabase 에서 캐시로 다운로드)
+    for vid in ids:
+        out = ANALYSIS_DIR / f"{vid}.json"
         if out.exists() and not args.force:
-            print(f"[skip] {vp.stem} (already analyzed)")
+            print(f"[skip] {vid} (already analyzed)")
             continue
+
+        # 로컬 vs 클라우드 경로 결정
+        local_path = VIDEOS_DIR / f"{vid}.mp4"
+        cache_path = CACHE_DIR / f"{vid}.mp4"
+
+        if args.local:
+            vp = local_path
+            downloaded = False
+        elif local_path.exists():
+            vp = local_path
+            downloaded = False
+        else:
+            # 클라우드에서 캐시로 다운로드
+            try:
+                import storage
+                print(f"[cloud-dl] {vid}")
+                storage.download(vid, cache_path)
+                vp = cache_path
+                downloaded = True
+            except Exception as e:
+                print(f"  [error] 다운로드 실패 {vid}: {e}")
+                continue
+
         try:
             result = analyze_one(vp)
-            out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            out.write_text(json.dumps(result, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
             print(f"  → {out.name}")
         except Exception as e:
-            print(f"  [error] {vp.stem}: {e}")
+            print(f"  [error] {vid}: {e}")
+        finally:
+            # 캐시 정리
+            if downloaded and not args.keep_cache and cache_path.exists():
+                try:
+                    cache_path.unlink()
+                except Exception:
+                    pass
 
 
 if __name__ == "__main__":

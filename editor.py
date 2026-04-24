@@ -50,8 +50,62 @@ def write_srt(segments: list[dict], path: Path):
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def run_ffmpeg(args: list[str]):
-    r = subprocess.run(args, capture_output=True, text=True)
+def _find_korean_font() -> str | None:
+    """Windows/Mac/Linux 에 한국어 폰트 탐색."""
+    candidates = [
+        r"C:\Windows\Fonts\malgun.ttf",
+        r"C:\Windows\Fonts\NanumGothic.ttf",
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+    ]
+    for p in candidates:
+        if Path(p).exists():
+            return p
+    return None
+
+
+def _escape_drawtext(text: str) -> str:
+    """ffmpeg drawtext 값에 쓰는 특수문자 escape."""
+    return (text
+            .replace("\\", r"\\")
+            .replace(":", r"\:")
+            .replace("'", r"\'")
+            .replace(",", r"\,")
+            .replace("%", r"\%"))
+
+
+def build_drawtext_filter(segments: list[dict], font_size: int,
+                          margin: int, font_path: str | None) -> str:
+    """Whisper 세그먼트를 drawtext 필터 체인으로 변환.
+    subtitles 필터 경로 문제를 우회하기 위함.
+    """
+    ff_font = None
+    if font_path:
+        # ffmpeg 필터 안의 경로: 백슬래시→슬래시, 콜론 이스케이프
+        ff_font = font_path.replace("\\", "/").replace(":", r"\:")
+
+    filters = []
+    for seg in segments:
+        if not seg["text"]:
+            continue
+        text = _escape_drawtext(seg["text"])
+        parts = [
+            f"drawtext=text='{text}'",
+            f"fontsize={font_size}",
+            "fontcolor=white",
+            "borderw=3", "bordercolor=black",
+            "x=(w-text_w)/2",
+            f"y=h-{margin}",
+            f"enable='between(t\\,{seg['start']:.2f}\\,{seg['end']:.2f})'",
+        ]
+        if ff_font:
+            parts.append(f"fontfile='{ff_font}'")
+        filters.append(":".join(parts))
+    return ",".join(filters)
+
+
+def run_ffmpeg(args: list[str], cwd: str | None = None):
+    r = subprocess.run(args, capture_output=True, text=True, cwd=cwd)
     if r.returncode != 0:
         print(r.stderr[-800:], file=sys.stderr)
         raise RuntimeError(f"ffmpeg exit {r.returncode}")
@@ -68,35 +122,44 @@ def edit(
     work = Path(tempfile.mkdtemp(prefix="vlog_edit_"))
     trimmed = work / "trimmed.mp4"
 
-    # 1) 트림
+    # 1) 트림 (copy 대신 H.264 재인코딩 — Windows 기본 플레이어 호환)
     if trim_sec:
         print(f"[trim] → {trim_sec}s")
         run_ffmpeg(["ffmpeg", "-y", "-i", str(video), "-t", str(trim_sec),
-                    "-c", "copy", str(trimmed)])
+                    "-c:v", "libx264", "-preset", "fast",
+                    "-c:a", "aac", str(trimmed)])
     else:
         trimmed = video  # no-op
 
-    # 2) 자막
+    # 2) 자막 (drawtext 필터로 구성 — subtitles 필터 경로 문제 우회)
     if captions:
         print("[captions] faster-whisper small (ko)")
         segs = transcribe(trimmed)
-        srt = work / "captions.srt"
-        write_srt(segs, srt)
-        # ffmpeg subtitle filter: single-quote escape path
-        srt_esc = str(srt).replace("\\", "/").replace(":", "\\:")
-        vf = (
-            f"subtitles='{srt_esc}':force_style="
-            f"'FontName=Malgun Gothic,FontSize={font_size},"
-            f"PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
-            f"Outline=2,Shadow=0,Alignment=2,MarginV={margin}'"
-        )
-        print(f"[burn] → {out}")
+        non_empty = [s for s in segs if s.get("text")]
+        if not non_empty:
+            print("[captions] no speech detected — re-encode only")
+            run_ffmpeg(["ffmpeg", "-y", "-i", str(trimmed),
+                        "-c:v", "libx264", "-preset", "fast",
+                        "-c:a", "aac", str(out)])
+            return
+
+        # 원본 검증용 SRT 도 저장 (디버그용)
+        write_srt(non_empty, work / "captions.srt")
+
+        font_path = _find_korean_font()
+        if not font_path:
+            print("[warn] 한국어 폰트를 찾지 못함 — 기본 폰트 사용 (한글 네모 표시 가능)")
+
+        vf = build_drawtext_filter(non_empty, font_size, margin, font_path)
+        print(f"[burn] {len(non_empty)} segments → {out}")
         run_ffmpeg(["ffmpeg", "-y", "-i", str(trimmed), "-vf", vf,
                     "-c:v", "libx264", "-preset", "medium",
                     "-c:a", "copy", str(out)])
     else:
-        print(f"[copy] → {out}")
-        run_ffmpeg(["ffmpeg", "-y", "-i", str(trimmed), "-c", "copy", str(out)])
+        print(f"[encode H.264] → {out}")
+        run_ffmpeg(["ffmpeg", "-y", "-i", str(trimmed),
+                    "-c:v", "libx264", "-preset", "fast",
+                    "-c:a", "aac", str(out)])
 
 
 def main():
