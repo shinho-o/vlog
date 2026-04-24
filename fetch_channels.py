@@ -1,138 +1,106 @@
 """
-지정 채널의 최근 영상을 YouTube API 로 끌어와 `vlog_videos` 에 업서트.
+지정 채널의 최근 영상을 yt-dlp 로 직접 긁어 Drive 의 _index JSON 으로 저장.
+YouTube API 를 아예 쓰지 않아 쿼터 제약 없음.
 
 사용:
-    python fetch_channels.py @Ong_Hyewon @Joohyunjoohyuny @쓰까르
-    python fetch_channels.py --per-channel 30 @Ong_Hyewon
-
-기본 20개. 채널 핸들(@xxx) 또는 채널ID(UCxxxxx) 둘 다 허용.
+    python fetch_channels.py "@Ong_Hyewon" "@Joohyunjoohyuny" "@쓰까르"
+    python fetch_channels.py --per-channel 50 "@Ong_Hyewon"
 """
 import argparse
 import json
-import os
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-import storage  # Drive 마운트 경로
-
-load_dotenv(Path(__file__).parent / ".env")
+import storage
 
 DRIVE_ROOT = storage.storage_root()
 INDEX_DIR = DRIVE_ROOT / "_index"
 INDEX_DIR.mkdir(exist_ok=True)
 
 
-def _yt():
-    from googleapiclient.discovery import build
-    return build("youtube", "v3", developerKey=os.getenv("YOUTUBE_API_KEY"))
+def fetch_channel(handle: str, limit: int) -> tuple[str, str, list[dict]]:
+    """yt-dlp --flat-playlist 로 채널의 최근 영상 limit 개 메타 추출.
+    반환: (channel_id, channel_title, videos)
+    """
+    handle = handle.strip()
+    if not handle.startswith("@") and not handle.startswith("UC"):
+        handle = "@" + handle
+    url = f"https://www.youtube.com/{handle}/videos"
 
+    cmd = [
+        sys.executable, "-m", "yt_dlp",
+        "--flat-playlist",
+        "--playlist-end", str(limit),
+        "--dump-single-json",
+        "--no-warnings",
+        url,
+    ]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=120,
+                       encoding="utf-8")
+    if r.returncode != 0:
+        raise RuntimeError(f"yt-dlp 실패 (exit {r.returncode}): {r.stderr[-300:]}")
 
-def resolve_channel_id(yt, handle_or_id: str) -> tuple[str, str] | None:
-    """핸들/ID → (channel_id, channel_title)."""
-    s = handle_or_id.strip()
-    if s.startswith("UC") and len(s) == 24:
-        r = yt.channels().list(part="snippet", id=s).execute()
-    else:
-        if not s.startswith("@"):
-            s = "@" + s
-        # forHandle 사용 (2024+ 지원)
-        r = yt.channels().list(part="snippet", forHandle=s).execute()
-    items = r.get("items", [])
-    if not items:
-        return None
-    ch = items[0]
-    return ch["id"], ch["snippet"]["title"]
+    data = json.loads(r.stdout)
+    ch_id = data.get("channel_id", "") or data.get("uploader_id", "")
+    ch_title = data.get("channel", "") or data.get("uploader", handle)
 
-
-def fetch_channel_videos(yt, channel_id: str, limit: int = 20) -> list[dict]:
-    """채널의 uploads 플레이리스트에서 최근 limit 개 가져오기."""
-    r = yt.channels().list(part="contentDetails", id=channel_id).execute()
-    items = r.get("items", [])
-    if not items:
-        return []
-    uploads = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
-
-    vids = []
-    page_token = None
-    while len(vids) < limit:
-        pl = yt.playlistItems().list(
-            part="snippet,contentDetails",
-            playlistId=uploads,
-            maxResults=min(50, limit - len(vids)),
-            pageToken=page_token,
-        ).execute()
-        for it in pl.get("items", []):
-            vids.append({
-                "video_id": it["contentDetails"]["videoId"],
-                "title": it["snippet"]["title"],
-                "channel": it["snippet"]["channelTitle"],
-                "published": it["contentDetails"].get("videoPublishedAt", "")[:10],
-            })
-        page_token = pl.get("nextPageToken")
-        if not page_token:
-            break
-
-    # 통계 (조회수·좋아요)
-    for i in range(0, len(vids), 50):
-        chunk = vids[i:i + 50]
-        ids = ",".join(v["video_id"] for v in chunk)
-        stats = yt.videos().list(part="statistics,contentDetails", id=ids).execute()
-        by_id = {v["id"]: v for v in stats.get("items", [])}
-        for v in chunk:
-            s = by_id.get(v["video_id"], {})
-            st = s.get("statistics", {})
-            v["views"] = int(st.get("viewCount", 0))
-            v["likes"] = int(st.get("likeCount", 0))
-            v["comments"] = int(st.get("commentCount", 0))
-            v["duration"] = s.get("contentDetails", {}).get("duration", "")
-    return vids
+    videos = []
+    for e in (data.get("entries") or [])[:limit]:
+        if not e:
+            continue
+        vid = e.get("id") or e.get("video_id")
+        if not vid:
+            continue
+        # yt-dlp flat-playlist 는 업로드 날짜가 없을 수 있음
+        videos.append({
+            "video_id": vid,
+            "title": e.get("title", ""),
+            "channel": ch_title,
+            "views": int(e.get("view_count") or 0),
+            "likes": 0,  # flat-playlist 에는 좋아요 없음
+            "comments": 0,
+            "duration": e.get("duration") or 0,
+            "published": (e.get("timestamp") and
+                          datetime.fromtimestamp(e["timestamp"]).strftime("%Y-%m-%d"))
+                          or "",
+        })
+    return ch_id, ch_title, videos
 
 
 def save_channel_json(channel_id: str, channel_title: str,
-                      videos: list[dict], handle: str):
-    """Drive 에 채널별 JSON 저장 — Supabase 의존성 제거."""
+                      videos: list[dict], handle: str) -> Path:
     safe = "".join(c for c in channel_title if c.isalnum() or c in "_-") or channel_id
     out = INDEX_DIR / f"channel_{safe}.json"
-    data = {
+    out.write_text(json.dumps({
         "channel_id": channel_id,
         "channel_title": channel_title,
         "handle": handle,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
         "videos": videos,
-    }
-    out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
     return out
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("handles", nargs="+", help="@핸들 또는 UC채널ID")
-    ap.add_argument("--per-channel", type=int, default=20)
+    ap.add_argument("--per-channel", type=int, default=30)
     args = ap.parse_args()
 
-    yt = _yt()
     total = 0
     for h in args.handles:
         try:
-            res = resolve_channel_id(yt, h)
+            print(f"[fetch] {h} — yt-dlp 로 긁는 중...")
+            ch_id, ch_title, videos = fetch_channel(h, args.per_channel)
+            out = save_channel_json(ch_id, ch_title, videos, h)
+            print(f"  {ch_title} ({ch_id}) → {len(videos)}개 → {out.name}")
+            total += len(videos)
         except Exception as e:
             print(f"[error] {h}: {e}")
-            continue
-        if not res:
-            print(f"[miss] 채널 찾기 실패: {h}")
-            continue
-        ch_id, ch_title = res
-        print(f"[fetch] {h} → {ch_title} ({ch_id})")
-        videos = fetch_channel_videos(yt, ch_id, limit=args.per_channel)
-        print(f"  {len(videos)}개 영상 수집")
-        out = save_channel_json(ch_id, ch_title, videos, h)
-        print(f"  → {out}")
-        total += len(videos)
 
-    print(f"\n[done] 총 {total}개 영상 → Drive {INDEX_DIR}")
+    print(f"\n[done] 총 {total}개 영상 메타 → {INDEX_DIR}")
 
 
 if __name__ == "__main__":
