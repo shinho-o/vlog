@@ -27,7 +27,54 @@ load_dotenv(SCRIPT_DIR / ".env")
 VIDEOS_DIR = SCRIPT_DIR / "data" / "videos"   # 옵션 --keep-local 때만 사용
 
 
-def fetch_top(top_n: int, category: str | None, days: int):
+import re
+_HANGUL = re.compile(r"[가-힣]")
+_BLOCK = re.compile(
+    r"("
+    # 해외
+    r"hindi|desi|bhai|bhabhi|mumbai|delhi"
+    # 방송·다큐
+    r"|휴먼다큐|휴먼스토리|인간극장|다큐멘터리|다큐프라임|다큐"
+    r"|kbs|mbc|sbs|ebs|tvn|jtbc|channela|mbn"
+    r"|방송사|다시보기|하이라이트|full episode|fullep"
+    # 뉴스·시사
+    r"|뉴스|보도|시사|현장중계"
+    # 예능·드라마
+    r"|런닝맨|무한도전|나혼자산다|복면가왕|드라마|예능클립"
+    # 리얼리티쇼
+    r"|나는솔로|환승연애|하트시그널"
+    # 기타
+    r"|공식채널|official channel"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_korean(title: str, channel: str) -> bool:
+    """제목 or 채널명에 한글 2자 이상이고 블록 키워드 없으면 한국 콘텐츠."""
+    text = (title or "") + " " + (channel or "")
+    if _BLOCK.search(text):
+        return False
+    return len(_HANGUL.findall(text)) >= 2
+
+
+def _velocity(row: dict) -> float:
+    """조회수 / 업로드 후 일수 = 하루당 평균 조회수 (신선도 반영)."""
+    try:
+        pub = datetime.strptime(row["published"][:10], "%Y-%m-%d")
+        days = max(0.5, (datetime.now() - pub).days)
+        return float(row.get("views", 0)) / days
+    except Exception:
+        return float(row.get("views", 0))
+
+
+def fetch_top(top_n: int, category: str | None, days: int,
+              korean_only: bool, hot: bool, published_days: int):
+    """Supabase vlog_videos 에서 상위 영상 선별.
+    - korean_only: 제목/채널에 한글 있는 것만
+    - hot: 조회수 대신 하루당 조회수(신선도)로 정렬
+    - published_days: 업로드된 지 N일 이내만
+    """
     from supabase import create_client
 
     url = os.getenv("SUPABASE_URL")
@@ -38,18 +85,33 @@ def fetch_top(top_n: int, category: str | None, days: int):
 
     sb = create_client(url, key)
     from_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    pub_from = (datetime.now() - timedelta(days=published_days)).strftime(
+        "%Y-%m-%d")
 
     query = (sb.table("vlog_videos")
-             .select("video_id,title,channel,views,likes,published,category")
+             .select("video_id,title,channel,views,likes,published,category,duration")
              .gte("date_collected", from_date)
+             .gte("published", pub_from)
              .eq("hidden", False)
              .order("views", desc=True)
-             .limit(top_n * 3))
+             .limit(top_n * 5))  # 넉넉히 뽑아 필터링 후 자름
 
     if category:
         query = query.eq("category", category)
 
     rows = query.execute().data or []
+
+    # 한국 콘텐츠 필터
+    if korean_only:
+        rows = [r for r in rows if _is_korean(r.get("title"), r.get("channel"))]
+
+    # 점수 계산 + 정렬
+    if hot:
+        for r in rows:
+            r["_score"] = _velocity(r)
+        rows.sort(key=lambda r: r["_score"], reverse=True)
+
+    # 채널 중복 제거
     seen_channel = set()
     picked = []
     for r in rows:
@@ -134,13 +196,27 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--category", type=str, default=None)
-    ap.add_argument("--days", type=int, default=14, help="수집된 지 N일 이내")
+    ap.add_argument("--days", type=int, default=14, help="DB 수집된 지 N일 이내")
+    ap.add_argument("--published-days", type=int, default=30,
+                    help="유튜브 업로드된 지 N일 이내만 (기본 30일)")
+    ap.add_argument("--no-korean-filter", action="store_true",
+                    help="한국 필터 해제 (기본: 한글 2자 이상)")
+    ap.add_argument("--no-hot", action="store_true",
+                    help="하루당 조회수 정렬 대신 총 조회수 정렬")
     ap.add_argument("--keep-local", action="store_true",
                     help="Supabase 업로드 외에 로컬 data/videos/ 에도 복사")
     args = ap.parse_args()
 
-    print(f"[fetch] top {args.top} (category={args.category or 'ALL'}, days={args.days})")
-    picked = fetch_top(args.top, args.category, args.days)
+    korean_only = not args.no_korean_filter
+    hot = not args.no_hot
+
+    print(f"[fetch] top {args.top} "
+          f"(category={args.category or 'ALL'}, "
+          f"published≤{args.published_days}d, "
+          f"korean={korean_only}, hot={hot})")
+    picked = fetch_top(args.top, args.category, args.days,
+                       korean_only=korean_only, hot=hot,
+                       published_days=args.published_days)
     if not picked:
         print("[skip] no videos matched")
         return
