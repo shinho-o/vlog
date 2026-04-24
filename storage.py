@@ -1,78 +1,79 @@
 """
-Supabase Storage 래퍼 — 영상 업로드·다운로드·존재 확인.
+스토리지 래퍼 — 로컬 Google Drive 마운트 경로에 직접 저장.
+Drive for Desktop 이 자동 동기화하므로 OAuth·API 셋업 없이 동작.
 
-버킷: `vlog-videos`
-객체 키: `{video_id}.mp4`
+기본 저장소: `G:/내 드라이브/QuickCut_Vlogs/` (Windows 한국어)
+- 환경변수 `DRIVE_VLOG_DIR` 로 오버라이드 가능
+- 유효한 경로가 없으면 로컬 data/videos 로 폴백
 """
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent / ".env")
+def _default_drive_path() -> Path | None:
+    """Google Drive for Desktop 의 QuickCut_Vlogs 폴더 경로 찾기."""
+    candidates = [
+        r"G:\내 드라이브\QuickCut_Vlogs",
+        r"G:\My Drive\QuickCut_Vlogs",
+        # 로컬 사용자 폴더
+        str(Path.home() / "Google Drive" / "내 드라이브" / "QuickCut_Vlogs"),
+        str(Path.home() / "Google Drive" / "My Drive" / "QuickCut_Vlogs"),
+    ]
+    env = os.getenv("DRIVE_VLOG_DIR")
+    if env:
+        candidates.insert(0, env)
+    for p in candidates:
+        pp = Path(p)
+        if pp.parent.exists():
+            pp.mkdir(parents=True, exist_ok=True)
+            return pp
+    return None
 
-BUCKET = "vlog-videos"
+
+_ROOT = _default_drive_path() or (Path(__file__).parent / "data" / "videos")
+_ROOT.mkdir(parents=True, exist_ok=True)
 
 
-def _client():
-    from supabase import create_client
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
-    if not url or not key:
-        raise RuntimeError("SUPABASE_URL / SUPABASE_KEY 환경변수 필요")
-    return create_client(url, key)
+def storage_root() -> Path:
+    return _ROOT
 
 
 def upload(local_path: Path, video_id: str) -> str:
-    """로컬 mp4 → Supabase Storage. 성공 시 스토리지 경로 반환."""
-    sb = _client()
-    key = f"{video_id}.mp4"
-    with open(local_path, "rb") as f:
-        data = f.read()
-    # upsert=true 로 재시도 안전
-    sb.storage.from_(BUCKET).upload(
-        path=key, file=data,
-        file_options={"content-type": "video/mp4",
-                      "upsert": "true"},
-    )
-    return key
+    """로컬 임시 파일 → Drive 마운트 폴더로 복사 (Drive 가 자동 클라우드 업로드)."""
+    dest = _ROOT / f"{video_id}.mp4"
+    if dest.exists():
+        dest.unlink()
+    shutil.copy2(local_path, dest)
+    return str(dest)
 
 
 def download(video_id: str, out_path: Path) -> Path:
-    """Supabase → 로컬 캐시 경로. out_path 부모 폴더 자동 생성."""
-    sb = _client()
-    key = f"{video_id}.mp4"
-    data = sb.storage.from_(BUCKET).download(key)
+    """Drive 마운트 폴더에서 로컬 캐시로 복사."""
+    src = _ROOT / f"{video_id}.mp4"
+    if not src.exists():
+        raise FileNotFoundError(f"Drive 에 {video_id}.mp4 없음")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_bytes(data)
+    shutil.copy2(src, out_path)
     return out_path
 
 
 def exists(video_id: str) -> bool:
-    """스토리지에 해당 video_id 영상이 있는지."""
-    sb = _client()
-    try:
-        lst = sb.storage.from_(BUCKET).list(
-            path="", options={"search": f"{video_id}.mp4", "limit": 1})
-        return any(item.get("name") == f"{video_id}.mp4" for item in (lst or []))
-    except Exception:
-        return False
+    return (_ROOT / f"{video_id}.mp4").exists()
 
 
 def list_all() -> list[str]:
-    """버킷의 모든 video_id 목록 (파일명 .mp4 제거)."""
-    sb = _client()
-    items = sb.storage.from_(BUCKET).list(path="", options={"limit": 1000})
-    out = []
-    for it in items or []:
-        name = it.get("name", "")
-        if name.endswith(".mp4"):
-            out.append(name[:-4])
-    return out
+    return sorted(p.stem for p in _ROOT.glob("*.mp4"))
 
 
 def remove(video_id: str):
-    sb = _client()
-    sb.storage.from_(BUCKET).remove([f"{video_id}.mp4"])
+    p = _ROOT / f"{video_id}.mp4"
+    if p.exists():
+        p.unlink()
+
+
+if __name__ == "__main__":
+    print(f"저장소 경로: {_ROOT}")
+    print(f"현재 영상 수: {len(list_all())}")
