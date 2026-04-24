@@ -167,7 +167,7 @@ def fetch_top(top_n: int, category: str | None, days: int,
 
 
 def download_and_upload(video_id: str, title: str, keep_local: bool) -> bool:
-    """yt-dlp → 임시 로컬 → Supabase 업로드 → (옵션) 로컬 삭제."""
+    """yt-dlp → 임시 로컬 → Supabase 업로드 → (실패·예외 포함) 무조건 temp 정리."""
     # 이미 스토리지에 있으면 스킵
     try:
         if storage.exists(video_id):
@@ -176,62 +176,67 @@ def download_and_upload(video_id: str, title: str, keep_local: bool) -> bool:
     except Exception as e:
         print(f"  [warn] 스토리지 존재 확인 실패: {e}")
 
-    # 임시 경로 (keep_local 이면 data/videos/ 에도 복사)
     tmpdir = Path(tempfile.mkdtemp(prefix="vlog_dl_"))
     tmp_path = tmpdir / f"{video_id}.mp4"
-
-    url = f"https://www.youtube.com/watch?v={video_id}"
-    cmd = [
-        sys.executable, "-m", "yt_dlp",
-        "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-        "--merge-output-format", "mp4",
-        "-o", str(tmp_path),
-        "--no-playlist",
-        "--quiet", "--no-warnings",
-        url,
-    ]
+    success = False
     try:
-        subprocess.run(cmd, check=True, timeout=300)
-    except subprocess.CalledProcessError as e:
-        print(f"  [fail] {video_id} — yt-dlp exit {e.returncode}")
-        return False
-    except subprocess.TimeoutExpired:
-        print(f"  [fail] {video_id} — timeout")
-        return False
-
-    if not tmp_path.exists() or tmp_path.stat().st_size == 0:
-        print(f"  [fail] {video_id} — 결과 파일 없음")
-        return False
-
-    size_mb = tmp_path.stat().st_size / 1024 / 1024
-    print(f"  [dl-ok] {video_id} ({title[:40]}) — {size_mb:.1f} MB")
-
-    # 업로드
-    try:
-        storage.upload(tmp_path, video_id)
-        print(f"  [upload] {video_id} → Supabase Storage")
-    except Exception as e:
-        print(f"  [fail] 업로드 실패 ({video_id}): {e}")
-        return False
-
-    # 로컬 보존 옵션
-    if keep_local:
-        VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
-        local_copy = VIDEOS_DIR / f"{video_id}.mp4"
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        # 720p 우선 (용량 절반, 분석 품질 충분)
+        cmd = [
+            sys.executable, "-m", "yt_dlp",
+            "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best[height<=720]",
+            "--merge-output-format", "mp4",
+            "-o", str(tmp_path),
+            "--no-playlist",
+            "--quiet", "--no-warnings",
+            "--no-cache-dir",
+            url,
+        ]
         try:
-            tmp_path.replace(local_copy)
-        except Exception:
-            import shutil
-            shutil.copy(tmp_path, local_copy)
+            subprocess.run(cmd, check=True, timeout=300)
+        except subprocess.CalledProcessError as e:
+            print(f"  [fail] {video_id} — yt-dlp exit {e.returncode}")
+            return False
+        except subprocess.TimeoutExpired:
+            print(f"  [fail] {video_id} — timeout")
+            return False
 
-    # 임시 정리
-    try:
-        if tmp_path.exists():
-            tmp_path.unlink()
-        tmpdir.rmdir()
-    except Exception:
-        pass
-    return True
+        if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+            print(f"  [fail] {video_id} — 결과 파일 없음")
+            return False
+
+        size_mb = tmp_path.stat().st_size / 1024 / 1024
+        # 50MB 넘는 건 Supabase 무료 플랜에 업로드 실패 — 사전 체크
+        if size_mb > 49:
+            print(f"  [skip] {video_id} — {size_mb:.1f} MB (50MB 초과, Supabase 업로드 불가)")
+            return False
+
+        print(f"  [dl-ok] {video_id} ({title[:40]}) — {size_mb:.1f} MB")
+
+        try:
+            storage.upload(tmp_path, video_id)
+            print(f"  [upload] {video_id} → Supabase")
+            success = True
+        except Exception as e:
+            print(f"  [fail] 업로드 실패 ({video_id}): {e}")
+            return False
+
+        if keep_local and success:
+            VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+            local_copy = VIDEOS_DIR / f"{video_id}.mp4"
+            try:
+                import shutil as _sh
+                _sh.copy(tmp_path, local_copy)
+            except Exception:
+                pass
+        return True
+    finally:
+        # 성공/실패 무관하게 임시 파일 제거
+        try:
+            import shutil as _sh2
+            _sh2.rmtree(tmpdir, ignore_errors=True)
+        except Exception:
+            pass
 
 
 def main():
