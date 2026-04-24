@@ -10,6 +10,7 @@ Supabase Storage(vlog-videos 버킷)에 업로드.
     python download.py --top 10 --keep-local   # 로컬 mp4도 남겨두기
 """
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -269,31 +270,73 @@ def download_and_upload(video_id: str, title: str, keep_local: bool) -> bool:
             pass
 
 
+def fetch_from_drive(top_n: int, korean_only: bool, hot: bool,
+                     published_days: int) -> list[dict]:
+    """Drive _index 폴더의 channel_*.json 에서 영상 목록 로드."""
+    root = storage.storage_root() / "_index"
+    if not root.exists():
+        return []
+    pub_cutoff = (datetime.now() - timedelta(days=published_days)).strftime(
+        "%Y-%m-%d")
+    rows: list[dict] = []
+    for fp in root.glob("channel_*.json"):
+        try:
+            data = json.loads(fp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for v in data.get("videos", []):
+            if v.get("published") and v["published"] < pub_cutoff:
+                continue
+            rows.append(v)
+
+    if korean_only:
+        rows = [r for r in rows if _is_korean(r.get("title"), r.get("channel"))]
+    rows = [r for r in rows if _is_vlog(r.get("title"), r.get("channel"))]
+
+    for r in rows:
+        base = _velocity(r) if hot else float(r.get("views", 0))
+        r["_score"] = base * _niche_score(r)
+    rows.sort(key=lambda r: r["_score"], reverse=True)
+
+    # 채널 중복 제거
+    seen = set()
+    out = []
+    for r in rows:
+        ch = r.get("channel", "")
+        if ch in seen:
+            continue
+        seen.add(ch)
+        out.append(r)
+        if len(out) >= top_n:
+            break
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--category", type=str, default=None)
     ap.add_argument("--days", type=int, default=14, help="DB 수집된 지 N일 이내")
-    ap.add_argument("--published-days", type=int, default=30,
-                    help="유튜브 업로드된 지 N일 이내만 (기본 30일)")
-    ap.add_argument("--no-korean-filter", action="store_true",
-                    help="한국 필터 해제 (기본: 한글 2자 이상)")
-    ap.add_argument("--no-hot", action="store_true",
-                    help="하루당 조회수 정렬 대신 총 조회수 정렬")
-    ap.add_argument("--keep-local", action="store_true",
-                    help="Supabase 업로드 외에 로컬 data/videos/ 에도 복사")
+    ap.add_argument("--published-days", type=int, default=30)
+    ap.add_argument("--no-korean-filter", action="store_true")
+    ap.add_argument("--no-hot", action="store_true")
+    ap.add_argument("--keep-local", action="store_true")
+    ap.add_argument("--source", choices=["drive", "supabase"], default="drive",
+                    help="영상 목록 소스 (기본: Drive JSON 인덱스)")
     args = ap.parse_args()
 
     korean_only = not args.no_korean_filter
     hot = not args.no_hot
 
-    print(f"[fetch] top {args.top} "
-          f"(category={args.category or 'ALL'}, "
-          f"published≤{args.published_days}d, "
-          f"korean={korean_only}, hot={hot})")
-    picked = fetch_top(args.top, args.category, args.days,
-                       korean_only=korean_only, hot=hot,
-                       published_days=args.published_days)
+    print(f"[fetch] top {args.top} source={args.source} "
+          f"published≤{args.published_days}d korean={korean_only} hot={hot}")
+
+    if args.source == "drive":
+        picked = fetch_from_drive(args.top, korean_only, hot, args.published_days)
+    else:
+        picked = fetch_top(args.top, args.category, args.days,
+                           korean_only=korean_only, hot=hot,
+                           published_days=args.published_days)
     if not picked:
         print("[skip] no videos matched")
         return
